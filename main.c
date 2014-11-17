@@ -3,79 +3,73 @@
 #include <string.h>
 #include <ctype.h>
 
-static const char *progname;
-static const char *filename;
+static const char *progName;
+static const char *fileName;
 
 static void usage(int status)
 {
 	FILE *dest = (status == 0) ? stdout : stderr;
 
-	fprintf(dest, "Usage: %s [-h] file\ncode/decode the file given\ncoded file must end with .x\n", progname);
+	fprintf(dest, "Usage: %s [-h] file\ncode/decode the file given\ncoded file must end with .x\n", progName);
 	exit(status);
 }
 
-int compterMots(char *str){
-	int n;        /* nombre des mots */
-	int DANS_MOT; /* indicateur logique: */
+int countWord(char *passPhrase){
+	int numberOfWord;        /* nombre des mots */
+	int isInsideWord; /* indicateur logique: à l'intérieur d'un mot */
  
 	/* Compter les mots */
-	n=0;
-	DANS_MOT=0;
-	for (unsigned int i = 0; i < strlen(str); i++)
+	numberOfWord=0;
+	isInsideWord=0;
+	for (unsigned int i = 0; i < strlen(passPhrase); i++)
 	{
-	    if (isspace(*(str+i)))
-	    	DANS_MOT=0;
-	    else if (!DANS_MOT)
+	    if (isspace(*(passPhrase+i)))
+	    	isInsideWord=0;
+	    else if (!isInsideWord)
 	    {
-	        DANS_MOT=1;
-	        n++;
+	        isInsideWord=1;
+	        numberOfWord++;
 	    }  
 	}
-	return n;
+	return numberOfWord;
 }
 
-int getWord(char *str, char **tab){
-	int d2 = 0, d1 = 0, espace = 1, size = 0;
+void getWord(char *passPhrase, char **tab){
+	int row = 0, line = 0, hasSpaceBefore = 1;
 
-	for (unsigned long i = 0; i < strlen(str); ++i)
+	for (unsigned long i = 0; i < strlen(passPhrase); ++i)
 	{
-		if (isspace (str[i]))
+		if (isspace (passPhrase[i]))
 		{
-			if (espace == 0)
+			if (hasSpaceBefore == 0)
 			{
-				d2++;
-				d1=0;
+				row++;
+				line=0;
 			}
-			espace = 1;	
+			hasSpaceBefore = 1;	
 		}
 		else
 		{
-			if (espace == 1)
-			{
-				*(tab+d2) = (char*)malloc(100);
-				size++;
-			}
-			tab[d2][d1] = str[i]; 
-			d1++;
-			espace = 0;
+			if (hasSpaceBefore == 1)
+				*(tab+row) = (char*)malloc(100);
+			tab[row][line] = passPhrase[i]; 
+			line++;
+			hasSpaceBefore = 0;
 		}
 	}
-	return size;
 }
 
-void afficherTab(char **tab, int size){
-	for (int i = 0; i < size; ++i)
+void afficherTab(char **tab, int numberOfWord){
+	for (int i = 0; i < numberOfWord; ++i)
 	{
 		if (*(tab+i) == NULL)
-		{
 			break;
-		}
 		printf("%s \n", *(tab+i));
 	}
 }
 
-void libererTab(char **tab, int size){
-	for (int i = 0; i < size; ++i)
+void freeTab(char **tab, int numberOfWord){
+	for (int i = 0; i < numberOfWord; ++i)
 	{
 		if (*(tab+i) == NULL)
 		{
@@ -85,185 +79,181 @@ void libererTab(char **tab, int size){
 	}
 }
 
-void XOR(FILE *fichier1, FILE *fichier2, char **tab, int nb){
+void XOR(FILE *filePtr1, FILE *filePtr2, char **tab, int ActualWord){
 	int i = 0;
-	char b, c;
-	rewind(fichier1);
-	rewind(fichier2);
-	do{
-    	b = fgetc(fichier1);
-    	if (b == EOF && feof)	//todo faire un assert propre
-    		break;
-    	else if(b == EOF && ferror)
-    		break;
-    	c = (*(tab[nb]+i) ^ b);
-        fputc(c, fichier2);
-        i = (i+1)%(strlen(tab[nb]));	//si le premier mot fait 7 lettres i ira de 0 à 6
-	}while(b != EOF);
+	char fileCharacter, xoredCharacter;
+	rewind(filePtr1);
+	rewind(filePtr2);
+	while(!feof(filePtr1)){
+    	fileCharacter = fgetc(filePtr1);
+    	xoredCharacter = (*(tab[ActualWord]+i) ^ fileCharacter);
+        fputc(xoredCharacter, filePtr2);
+        i = (i+1)%(strlen(tab[ActualWord]));	//si le premier mot fait 7 lettres i ira de 0 à 6
+	}
 }
 
-void code(FILE *fp, char **tab, int nbMot){
-	FILE *fichierCode = NULL, *fichierTmp1 = NULL, *fichierTmp2 = NULL;
-	FILE *ptr = NULL;
-	int size = strlen(filename);
- 	char name[size+2];
+void code(FILE *mainFile, char **tab, int numberOfWord){
+	FILE *codedFile = NULL, *tmpFile1 = NULL, *tmpFile2 = NULL;
+	FILE *actualFile = NULL;
+	int mainFileSize = strlen(fileName);
+ 	char finalName[mainFileSize+2];
 
  	//on nomme le fichier qui sera codé
- 	strcpy(name, filename);
- 	name[size] = '.';
- 	name[size+1] = 'x';
- 	name[size+2] = '\0';
+ 	strcpy(finalName, fileName);
+ 	finalName[mainFileSize] = '.';
+ 	finalName[mainFileSize+1] = 'x';
+ 	finalName[mainFileSize+2] = '\0';
 
- 	if ((fichierCode = fopen(name, "w+")) == NULL) {
-		perror(name);
+ 	if ((codedFile = fopen(finalName, "w+")) == NULL) {
+		perror(finalName);
 		exit(0);
 	}
- 	if ((fichierTmp1 = fopen("tmp1", "w+")) == NULL) {
+ 	if ((tmpFile1 = fopen("tmp1", "w+")) == NULL) {
 		perror("tmp1");
 		exit(0);
 	}
- 	if(nbMot > 1)
+ 	if(numberOfWord > 1)
  	{
- 		XOR(fp, fichierTmp1, tab, 0);
-		if ((fichierTmp2 = fopen("tmp2", "w+")) == NULL) {
+ 		XOR(mainFile, tmpFile1, tab, 0);
+		if ((tmpFile2 = fopen("tmp2", "w+")) == NULL) {
 			perror("tmp2");
 			exit(0);
 		} 		
-		ptr = fichierTmp1;
-	 	for (int nb = 1; nb < nbMot; ++nb)
+		actualFile = tmpFile1;
+	 	for (int nb = 1; nb < numberOfWord; ++nb)
 	 	{
-	 		if (nb == nbMot-1)
-	 			XOR(ptr, fichierCode, tab, nb);
+	 		if (nb == numberOfWord-1)
+	 			XOR(actualFile, codedFile, tab, nb);
 	 		else if(nb%2 == 1){
-		 		XOR(fichierTmp1, fichierTmp2, tab, nb);
-		 		ptr = fichierTmp2;
+		 		XOR(tmpFile1, tmpFile2, tab, nb);
+		 		actualFile = tmpFile2;
 	 		}
 		 	else{
-		 		XOR(fichierTmp2,fichierTmp1, tab, nb);
-		 		ptr = fichierTmp1;
+		 		XOR(tmpFile2,tmpFile1, tab, nb);
+		 		actualFile = tmpFile1;
 		 	}
 	 	}
  	}
  	else{
- 		XOR(fp, fichierCode, tab, 0);
+ 		XOR(mainFile, codedFile, tab, 0);
 
  	}
 
-    fclose(fichierCode);
-    fclose(fichierTmp2);
-    fclose(fichierTmp1);
+    fclose(codedFile);
+    fclose(tmpFile2);
+    fclose(tmpFile1);
     remove("tmp1");
     remove("tmp2");
 }
 
-void decode(FILE *fp, char **tab, int nbMot){
-	FILE * fichierDecode = NULL, *fichierTmp1 = NULL, *fichierTmp2 = NULL;
-	FILE *ptr = NULL;
+void decode(FILE *mainFile, char **tab, int numberOfWord){
+	FILE * decodedFile = NULL, *tmpFile1 = NULL, *tmpFile2 = NULL;
+	FILE * actualFile = NULL;
 
-	int size = strlen(filename);
- 	char name[size];
+	int mainFileSize = strlen(fileName);
+ 	char finalName[mainFileSize];
 
  	//on nomme le fichier qui sera codé
- 	strcpy(name, filename);
- 	name[size-2] = '\0';	
- 	if ((fichierDecode = fopen(name, "w+")) == NULL) {
-		perror(name);
+ 	strcpy(finalName, fileName);
+ 	finalName[mainFileSize-2] = '\0';	
+ 	if ((decodedFile = fopen(finalName, "w+")) == NULL) {
+		perror(finalName);
 		exit(0);
 	}
- 	if ((fichierTmp1 = fopen("tmp1", "w+")) == NULL) {
+ 	if ((tmpFile1 = fopen("tmp1", "w+")) == NULL) {
 		perror("tmp1");
 		exit(0);
 	}
- 	rewind(fp);
+ 	rewind(mainFile);
 
- 	if(nbMot > 1)
+ 	if(numberOfWord > 1)
  	{
- 		XOR(fp, fichierTmp1, tab, nbMot-1);
-		if ((fichierTmp2 = fopen("tmp2", "w+")) == NULL) {
+ 		XOR(mainFile, tmpFile1, tab, numberOfWord-1);
+		if ((tmpFile2 = fopen("tmp2", "w+")) == NULL) {
 			perror("tmp2");
 			exit(0);
 		}  		
-		ptr = fichierTmp1;
-	 	for (int nb = 1; nb < nbMot; ++nb)
+		actualFile = tmpFile1;
+	 	for (int nb = 1; nb < numberOfWord; ++nb)
 	 	{
-	 		if (nb == nbMot-1)
-	 			XOR(ptr, fichierDecode, tab, (nbMot-1)-nb);
+	 		if (nb == numberOfWord-1)
+	 			XOR(actualFile, decodedFile, tab, (numberOfWord-1)-nb);
 	 		else if(nb%2 == 1){
-		 		XOR(fichierTmp1, fichierTmp2, tab, (nbMot-1)-nb);
-		 		ptr = fichierTmp2;
+		 		XOR(tmpFile1, tmpFile2, tab, (numberOfWord-1)-nb);
+		 		actualFile = tmpFile2;
 	 		}
 		 	else{
-		 		XOR(fichierTmp2, fichierTmp1, tab, (nbMot-1)-nb);
-		 		ptr = fichierTmp1;
+		 		XOR(tmpFile2, tmpFile1, tab, (numberOfWord-1)-nb);
+		 		actualFile = tmpFile1;
 		 	}
 	 	}
  	}
  	else{
- 		 	XOR(fp, fichierDecode, tab, 0);
+ 		 	XOR(mainFile, decodedFile, tab, 0);
 
  	}
 
 
-    fclose(fichierDecode);
-    fclose(fichierTmp2);
-    fclose(fichierTmp1);
+    fclose(decodedFile);
+    fclose(tmpFile2);
+    fclose(tmpFile1);
     remove("tmp1");
     remove("tmp2");
 }
 
 int main (int argc, char const *argv[])
 {
-	FILE *fp;
-	double size;
+	FILE *mainFile;
+	double mainFileSize;
 
 	//on récupère le nom du prog ainsi que la taille du fichier
-	if ((progname = strrchr(argv[0], '/')) != NULL) {
-		++progname;
+	if ((progName = strrchr(argv[0], '/')) != NULL) {
+		++progName;
 	} else {
-		progname = argv[0];
+		progName = argv[0];
 	}
 	if (argc < 2) {
 		usage(EXIT_FAILURE);
 	} else if (strcmp(argv[1], "-h") == 0) {
 		usage(EXIT_SUCCESS);
 	}
-	if ((filename = strrchr(argv[1], '/')) != NULL) {
-		++filename;
+	if ((fileName = strrchr(argv[1], '/')) != NULL) {
+		++fileName;
 	} else {
-		filename = argv[1];
+		fileName = argv[1];
 	}
-	if ((fp = fopen(argv[1], "r")) == NULL) {
+	if ((mainFile = fopen(argv[1], "r")) == NULL) {
 		perror(argv[1]);
 		return EXIT_FAILURE;
 	}
-	fseek(fp, 0, SEEK_END);
-	size = (double)ftell(fp);
+	fseek(mainFile, 0, SEEK_END);
+	mainFileSize = (double)ftell(mainFile);
 
 
 
-	char mdp[100];
-	int nbMot;
+	char passPhrase[100];
+	int numberOfWord;
 	
 	printf("Qu'avez vous à me dire ?\n>>");
-	fgets (mdp, 99, stdin);
-	nbMot = compterMots(mdp);
-	char **tab = (char**) malloc (sizeof (char*) * nbMot) ;
+	fgets (passPhrase, 99, stdin);
+	numberOfWord = countWord(passPhrase);
+	char **tab = (char**) malloc (sizeof (char*) * numberOfWord) ;
 
-	getWord(mdp, tab);
+	getWord(passPhrase, tab);
 
-	if (*(argv[1]+strlen(argv[1])-1) == 'x' && *(argv[1]+strlen(argv[1])-2) == '.'){
-		decode(fp, tab, nbMot);
+	if (*(argv[1]+strlen(argv[1])-2) == '.' && *(argv[1]+strlen(argv[1])-1) == 'x'){
+		decode(mainFile, tab, numberOfWord);
 	}
 	else{
-		code(fp, tab, nbMot);
+		code(mainFile, tab, numberOfWord);
 	}
 
 	//on libère la mémoire
-	libererTab(tab, nbMot);
+	freeTab(tab, numberOfWord);
 	free (tab);
 
 	//on ferme le fichier
-	fclose(fp);
+	fclose(mainFile);
 
 	return 0;
 }
