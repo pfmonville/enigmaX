@@ -1,3 +1,18 @@
+/*
+------------------------------------------------------------------------
+						xoxor.c
+Permet de coder ou décoder un fichier donné en argument
+grâce à une passphrase décomposée en mot qui seront alongés
+de la taille du fichier d'entré puis xor avec ce dernier
+les uns après les autres formant autant de couches que de mots.
+
+-fichier d'entré: n'importe quel fichier pouvant être décomposé en Byte
+
+-fichier à décoder: se terminant par '.x'
+
+------------------------------------------------------------------------
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,16 +21,18 @@
 static const char *progName;
 static const char *fileName;
 
+//mini man pour le programme lorsqu'il est appellé sans argument ou avec -h
 static void usage(int status)
 {
 	FILE *dest = (status == 0) ? stdout : stderr;
 
-	fprintf(dest, "Usage: %s [-h] file\ncode/decode the file given\ncoded file must end with .x\n", progName);
+	fprintf(dest, "Usage: %s [-h] file\ncode/decode the given file\ncoded file must end with .x\n", progName);
 	exit(status);
 }
 
+//compte le nombre de mots dans le mot de passe
 int countWord(char *passPhrase){
-	int numberOfWord;        /* nombre des mots */
+	int numberOfWord; /* nombre des mots */
 	int isInsideWord; /* indicateur logique: à l'intérieur d'un mot */
  
 	/* Compter les mots */
@@ -34,6 +51,7 @@ int countWord(char *passPhrase){
 	return numberOfWord;
 }
 
+//sépare les mots du mot de passe pour les mettre dans un tableau dynamique
 void getWord(char *passPhrase, char **tab){
 	int row = 0, line = 0, hasSpaceBefore = 1;
 
@@ -59,6 +77,8 @@ void getWord(char *passPhrase, char **tab){
 	}
 }
 
+
+//pour deboguer
 void afficherTab(char **tab, int numberOfWord){
 	for (int i = 0; i < numberOfWord; ++i)
 	{
@@ -68,6 +88,7 @@ void afficherTab(char **tab, int numberOfWord){
 	}
 }
 
+//libère la mémoire du tableau dynamique
 void freeTab(char **tab, int numberOfWord){
 	for (int i = 0; i < numberOfWord; ++i)
 	{
@@ -79,6 +100,8 @@ void freeTab(char **tab, int numberOfWord){
 	}
 }
 
+
+//effectue un xor entre deux fichiers (de même taille ou alors l'un doit être en w+)
 void XOR(FILE *filePtr1, FILE *filePtr2, char **tab, int ActualWord){
 	int i = 0;
 	char fileCharacter, xoredCharacter;
@@ -92,6 +115,7 @@ void XOR(FILE *filePtr1, FILE *filePtr2, char **tab, int ActualWord){
 	}
 }
 
+//lance la procédure de codage par xor sur le fichier donnée en argument avec le mot de passe donné
 void code(FILE *mainFile, char **tab, int numberOfWord){
 	FILE *codedFile = NULL, *tmpFile1 = NULL, *tmpFile2 = NULL;
 	FILE *actualFile = NULL;
@@ -112,6 +136,8 @@ void code(FILE *mainFile, char **tab, int numberOfWord){
 		perror("tmp1");
 		exit(0);
 	}
+
+	//s'il y a plus d'un mot il faut que tmp1 et tmp2 se renvoit la balle jusqu'au dernier mot
  	if(numberOfWord > 1)
  	{
  		XOR(mainFile, tmpFile1, tab, 0);
@@ -134,11 +160,12 @@ void code(FILE *mainFile, char **tab, int numberOfWord){
 		 	}
 	 	}
  	}
+ 	//sinon on code juste dans le fichier d'arrivé
  	else{
  		XOR(mainFile, codedFile, tab, 0);
-
  	}
 
+ 	//on ferme les fichiers utilisés et on supprime les temporaires
     fclose(codedFile);
     fclose(tmpFile2);
     fclose(tmpFile1);
@@ -146,6 +173,8 @@ void code(FILE *mainFile, char **tab, int numberOfWord){
     remove("tmp2");
 }
 
+
+//lance la procédure de décodage par xor sur le fichier donnée en argument avec le mot de passe donné
 void decode(FILE *mainFile, char **tab, int numberOfWord){
 	FILE * decodedFile = NULL, *tmpFile1 = NULL, *tmpFile2 = NULL;
 	FILE * actualFile = NULL;
@@ -166,7 +195,8 @@ void decode(FILE *mainFile, char **tab, int numberOfWord){
 	}
  	rewind(mainFile);
 
- 	if(numberOfWord > 1)
+ 	//s'il y a plus d'un mot il faut que tmp1 et tmp2 se renvoit la balle jusqu'au dernier mot
+	if(numberOfWord > 1)
  	{
  		XOR(mainFile, tmpFile1, tab, numberOfWord-1);
 		if ((tmpFile2 = fopen("tmp2", "w+")) == NULL) {
@@ -188,12 +218,12 @@ void decode(FILE *mainFile, char **tab, int numberOfWord){
 		 	}
 	 	}
  	}
+ 	//sinon on décode juste dans le fichier d'arrivé
  	else{
  		 	XOR(mainFile, decodedFile, tab, 0);
-
  	}
 
-
+ 	//on ferme les fichiers utilisés et on supprime les temporaires
     fclose(decodedFile);
     fclose(tmpFile2);
     fclose(tmpFile1);
