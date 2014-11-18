@@ -107,9 +107,12 @@ void XOR(FILE *filePtr1, FILE *filePtr2, char **tab, int ActualWord){
 	char fileCharacter, xoredCharacter;
 	rewind(filePtr1);
 	rewind(filePtr2);
+
 	while(!feof(filePtr1)){
     	fileCharacter = fgetc(filePtr1);
-    	xoredCharacter = (*(tab[ActualWord]+i) ^ fileCharacter);
+    	if (fileCharacter == EOF && feof(filePtr1))	//cas particulier des fichier txt (debogue) empeche le caractère +1 de s'écrire
+    		break;
+       	xoredCharacter = (*(tab[ActualWord]+i) ^ fileCharacter);
         fputc(xoredCharacter, filePtr2);
         i = (i+1)%(strlen(tab[ActualWord]));	//si le premier mot fait 7 lettres i ira de 0 à 6
 	}
@@ -193,7 +196,6 @@ void decode(FILE *mainFile, char **tab, int numberOfWord){
 		perror("tmp1");
 		exit(0);
 	}
- 	rewind(mainFile);
 
  	//s'il y a plus d'un mot il faut que tmp1 et tmp2 se renvoit la balle jusqu'au dernier mot
 	if(numberOfWord > 1)
