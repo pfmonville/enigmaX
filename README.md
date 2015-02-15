@@ -11,6 +11,7 @@ Il est préférable d'utiliser plusieurs mots et de longueurs différentes afin 
 Si on respècte ces règles:
 *  Utiliser un mot de plus de 1 caractère
 *  Utiliser au moins deux mots et faire en sorte que les mots aient des longueurs différentes
+
 Alors on se rapproche d'un codage type "chiffre de Vernam" inconditionnellement sûr.
 
 
