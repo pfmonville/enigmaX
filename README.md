@@ -15,7 +15,7 @@ Si on respècte ces règles:
 Alors on se rapproche d'un codage type "chiffre de Vernam" inconditionnellement sûr.
 
 
-Utilisation :
+##Utilisation :
 
 Pour chiffrer
 ```
