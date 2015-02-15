@@ -9,7 +9,7 @@ il faut éviter de ne mettre qu'une lettre par mot car tous les bytes du fichier
 Il est préférable d'utiliser plusieurs mots et de longueurs différentes afin de ne pas subir l'analyse des fréquences.
 
 Si on respècte ces règles:
-*  Utiliser un mot de plus de 1 caractère
+*  Utiliser des mots de plus de 1 caractère
 *  Utiliser au moins deux mots et faire en sorte que les mots aient des longueurs différentes
 
 Alors on se rapproche d'un codage type "chiffre de Vernam" inconditionnellement sûr.
