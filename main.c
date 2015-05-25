@@ -1,244 +1,332 @@
+// Copyright <Pierre-François Monville>
+// ===========================================================================
+// 									enigmaX
+// permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre
+// le mot de passe demandé au début est hashé puis sert de graine pour le PRNG
+// le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder
+// ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe)
+// De plus un brouilleur est utilisé, il mélange la table des caractères (ascii)
+// en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille
+// matériel permettrait d'analyser la ram afin d'inverser les xor, le résultat
+// obtenu serait toujours illisible.
+//
+// Can crypt and decrypt any file given in argument. The password asked is hashed
+// to be used as a seed for the PRNG. The PRNG gives a unique key
+// which has the same length as the source file, thus the security is maximum
+// (the only way to break through is by bruteforce). Moreover, a scambler is used,
+// it scrambles the ascii table using the PRNG or the keyFile given to prevent
+// an hardware failure allowing ram analysis to invert the xoring process, making
+// such an exploit useless.
+//
+// USAGE : enigmaX file [keyFile]
+// 		then enter a password to crypt or decrypt if the file given is a .x
+//
+// ===========================================================================
+
+
 /*
-------------------------------------------------------------------------
-						xoxor.c
-Permet de coder ou décoder un fichier donné en argument
-grâce à une passphrase décomposée en mot qui seront alongés
-de la taille du fichier d'entré puis xor avec ce dernier
-les uns après les autres formant autant de couches que de mots.
-
--fichier d'entré: n'importe quel fichier pouvant être décomposé en Byte
-
--fichier à décoder: se terminant par '.x'
-
-------------------------------------------------------------------------
-*/
-
+	includes
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <ctype.h>
 
+
+/*
+	constants
+ */
+#define BUFFER_SIZE 16384
+
+
+/*
+	global variables
+ */
 static const char *progName;
 static const char *fileName;
+static uint64_t seed[2];
+static unsigned char scrambleAsciiTable[256];
+static unsigned char unscrambleAsciiTable[256] = "";
+static char isCoding = 0;
 
-//mini man pour le programme lorsqu'il est appellé sans argument ou avec -h
+
+/*
+	-static void usage(int status)
+	status : expect EXIT_FAILURE or EXIT_SUCCESS code to choose the output stream
+
+	when the program is typed without arguments in terminal it shows the usage
+ */
 static void usage(int status)
 {
 	FILE *dest = (status == 0) ? stdout : stderr;
 
-	fprintf(dest, "Usage: %s [-h] file\ncode/decode the given file\ncoded file must end with .x\n", progName);
+	fprintf(dest, "Usage: %s file [keyfile]\n\tcode or decode the given file\n\tthe file you want to decode must finishes with .x\n", progName);
 	exit(status);
 }
 
-//compte le nombre de mots dans le mot de passe
-int countWord(char *passPhrase){
-	int numberOfWord; /* nombre des mots */
-	int isInsideWord; /* indicateur logique: à l'intérieur d'un mot */
- 
-	/* Compter les mots */
-	numberOfWord=0;
-	isInsideWord=0;
-	for (unsigned int i = 0; i < strlen(passPhrase); i++)
-	{
-	    if (isspace(*(passPhrase+i)))
-	    	isInsideWord=0;
-	    else if (!isInsideWord)
-	    {
-	        isInsideWord=1;
-	        numberOfWord++;
-	    }  
-	}
-	return numberOfWord;
-}
 
-//sépare les mots du mot de passe pour les mettre dans un tableau dynamique
-void getWord(char *passPhrase, char **tab){
-	int row = 0, line = 0, hasSpaceBefore = 1;
+/*
+	-uint64_t generateNumber(void)
+	returned value :  uint64_t number (equivalent to long long but on all OS)
 
-	for (unsigned long i = 0; i < strlen(passPhrase); ++i)
-	{
-		if (isspace (passPhrase[i]))
-		{
-			if (hasSpaceBefore == 0)
-			{
-				row++;
-				line=0;
-			}
-			hasSpaceBefore = 1;	
-		}
-		else
-		{
-			if (hasSpaceBefore == 1)
-				*(tab+row) = (char*)malloc(100);
-			tab[row][line] = passPhrase[i]; 
-			line++;
-			hasSpaceBefore = 0;
-		}
-	}
-}
-
-
-//pour deboguer
-void afficherTab(char **tab, int numberOfWord){
-	for (int i = 0; i < numberOfWord; ++i)
-	{
-		if (*(tab+i) == NULL)
-			break;
-		printf("%s \n", *(tab+i));
-	}
-}
-
-//libère la mémoire du tableau dynamique
-void freeTab(char **tab, int numberOfWord){
-	for (int i = 0; i < numberOfWord; ++i)
-	{
-		if (*(tab+i) == NULL)
-		{
-			break;
-		}
-		free(*(tab+i));
-	}
-}
-
-
-//effectue un xor entre deux fichiers (de même taille ou alors l'un doit être en w+)
-void XOR(FILE *filePtr1, FILE *filePtr2, char **tab, int ActualWord){
-	int i = 0;
-	char fileCharacter, xoredCharacter;
-	rewind(filePtr1);
-	rewind(filePtr2);
-
-	while(!feof(filePtr1)){
-    	fileCharacter = fgetc(filePtr1);
-    	if (fileCharacter == EOF && feof(filePtr1))	//cas particulier des fichier txt (debogue) empeche le caractère +1 de s'écrire
-    		break;
-       	xoredCharacter = (*(tab[ActualWord]+i) ^ fileCharacter);
-        fputc(xoredCharacter, filePtr2);
-        i = (i+1)%(strlen(tab[ActualWord]));	//si le premier mot fait 7 lettres i ira de 0 à 6
-	}
-}
-
-//lance la procédure de codage par xor sur le fichier donnée en argument avec le mot de passe donné
-void code(FILE *mainFile, char **tab, int numberOfWord){
-	FILE *codedFile = NULL, *tmpFile1 = NULL, *tmpFile2 = NULL;
-	FILE *actualFile = NULL;
-	int mainFileSize = strlen(fileName);
- 	char finalName[mainFileSize+2];
-
- 	//on nomme le fichier qui sera codé
- 	strcpy(finalName, fileName);
- 	finalName[mainFileSize] = '.';
- 	finalName[mainFileSize+1] = 'x';
- 	finalName[mainFileSize+2] = '\0';
-
- 	if ((codedFile = fopen(finalName, "w+")) == NULL) {
-		perror(finalName);
-		exit(0);
-	}
- 	if ((tmpFile1 = fopen("tmp1", "w+")) == NULL) {
-		perror("tmp1");
-		exit(0);
-	}
-
-	//s'il y a plus d'un mot il faut que tmp1 et tmp2 se renvoit la balle jusqu'au dernier mot
- 	if(numberOfWord > 1)
- 	{
- 		XOR(mainFile, tmpFile1, tab, 0);
-		if ((tmpFile2 = fopen("tmp2", "w+")) == NULL) {
-			perror("tmp2");
-			exit(0);
-		} 		
-		actualFile = tmpFile1;
-	 	for (int nb = 1; nb < numberOfWord; ++nb)
-	 	{
-	 		if (nb == numberOfWord-1)
-	 			XOR(actualFile, codedFile, tab, nb);
-	 		else if(nb%2 == 1){
-		 		XOR(tmpFile1, tmpFile2, tab, nb);
-		 		actualFile = tmpFile2;
-	 		}
-		 	else{
-		 		XOR(tmpFile2,tmpFile1, tab, nb);
-		 		actualFile = tmpFile1;
-		 	}
-	 	}
- 	}
- 	//sinon on code juste dans le fichier d'arrivé
- 	else{
- 		XOR(mainFile, codedFile, tab, 0);
- 	}
-
- 	//on ferme les fichiers utilisés et on supprime les temporaires
-    fclose(codedFile);
-    fclose(tmpFile2);
-    fclose(tmpFile1);
-    remove("tmp1");
-    remove("tmp2");
-}
-
-
-//lance la procédure de décodage par xor sur le fichier donnée en argument avec le mot de passe donné
-void decode(FILE *mainFile, char **tab, int numberOfWord){
-	FILE * decodedFile = NULL, *tmpFile1 = NULL, *tmpFile2 = NULL;
-	FILE * actualFile = NULL;
-
-	int mainFileSize = strlen(fileName);
- 	char finalName[mainFileSize];
-
- 	//on nomme le fichier qui sera codé
- 	strcpy(finalName, fileName);
- 	finalName[mainFileSize-2] = '\0';	
- 	if ((decodedFile = fopen(finalName, "w+")) == NULL) {
-		perror(finalName);
-		exit(0);
-	}
- 	if ((tmpFile1 = fopen("tmp1", "w+")) == NULL) {
-		perror("tmp1");
-		exit(0);
-	}
-
- 	//s'il y a plus d'un mot il faut que tmp1 et tmp2 se renvoit la balle jusqu'au dernier mot
-	if(numberOfWord > 1)
- 	{
- 		XOR(mainFile, tmpFile1, tab, numberOfWord-1);
-		if ((tmpFile2 = fopen("tmp2", "w+")) == NULL) {
-			perror("tmp2");
-			exit(0);
-		}  		
-		actualFile = tmpFile1;
-	 	for (int nb = 1; nb < numberOfWord; ++nb)
-	 	{
-	 		if (nb == numberOfWord-1)
-	 			XOR(actualFile, decodedFile, tab, (numberOfWord-1)-nb);
-	 		else if(nb%2 == 1){
-		 		XOR(tmpFile1, tmpFile2, tab, (numberOfWord-1)-nb);
-		 		actualFile = tmpFile2;
-	 		}
-		 	else{
-		 		XOR(tmpFile2, tmpFile1, tab, (numberOfWord-1)-nb);
-		 		actualFile = tmpFile1;
-		 	}
-	 	}
- 	}
- 	//sinon on décode juste dans le fichier d'arrivé
- 	else{
- 		 	XOR(mainFile, decodedFile, tab, 0);
- 	}
-
- 	//on ferme les fichiers utilisés et on supprime les temporaires
-    fclose(decodedFile);
-    fclose(tmpFile2);
-    fclose(tmpFile1);
-    remove("tmp1");
-    remove("tmp2");
-}
-
-int main (int argc, char const *argv[])
+	random number generator
+	with the Xorshift+ algorythm which is one of the quickiest PRNG
+	it passes the BigCrush test :
+	http://en.wikipedia.org/wiki/Xorshift
+ */
+uint64_t generateNumber()
 {
-	FILE *mainFile;
-	double mainFileSize;
+	uint64_t x = seed[0];
+	uint64_t const y = seed[1];
+	seed[0] = y;
+	x ^= x << 23; // a
+	x ^= x >> 17; // b
+	x ^= y ^ (y >> 26); // c
+	seed[1] = x;
+	return x + y;
+}
 
-	//on récupère le nom du prog ainsi que la taille du fichier
+
+/*
+	-void hash(char* password)
+	password : a string which is the password typed by the user
+
+	simple function that hashes a string into numbers
+	we don't have to worry about security here because it is just to transform the password into numbers
+	that populate the seeds of the RNG (seed[2])
+	the number which is multiplied (131) must be a prime number and superior to 256 to avoid collision
+ */
+void hash(char* password)
+{
+	uint64_t h = 0;
+	for (int j = 0; j < 2; ++j)
+	{
+		for (int i = 0; password[i]; i++)
+		{
+			h = 257 * h + password[i];
+		}
+		seed[j] = h;
+	}
+}
+
+
+/*
+	-void scramble(FILE* keyFile)
+	keyFile : can be null, if present random256 takes its values from it
+
+	scramble the ascii table assuring that there is no duplicate
+	inspired by the Enigma machine; switching letters but without its weekness,
+	here a letter can be switched by itself and it is not possible to know how many letters
+	have been switched
+ */
+void scramble(FILE* keyFile){
+	char temp = 0;
+
+	for (int i = 0; i < 256; ++i)
+	{
+		scrambleAsciiTable[i] = i;
+	}
+
+	if (keyFile != NULL){
+		int size;
+		char extractedString[BUFFER_SIZE] = "";
+		while((size = fread(extractedString, 1, BUFFER_SIZE, keyFile)) > 0){
+			for (int i = 0; i < size; ++i)
+			{
+				temp = scrambleAsciiTable[i%256];
+				scrambleAsciiTable[i%256] = scrambleAsciiTable[(unsigned char)(extractedString[i])];
+				scrambleAsciiTable[(unsigned char)(extractedString[i])] = temp;
+			}
+		}
+	} else {
+		unsigned char random256;
+		for (int i = 0; i < 10 * 256; ++i)
+		{
+			random256 = generateNumber();
+			temp = scrambleAsciiTable[i%256];
+			scrambleAsciiTable[i%256] = scrambleAsciiTable[random256];
+			scrambleAsciiTable[random256] = temp;
+		}
+	}
+}
+
+
+/*
+	-void unscramble(void)
+
+	this function is here only for optimization
+	it inverses the key/value in the scramble ascii table making the backward process instaneous
+ */
+void unscramble(){
+	for (int i = 0; i < 256; ++i)
+	{
+		unscrambleAsciiTable[(unsigned char) scrambleAsciiTable[i]] = i;
+	}
+}
+
+
+/*
+	-void XOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
+	extractedString : data taken from the source file in a string format
+	keyString : a part of the unique key generated by the PRNG in a string format
+	xoredString : the result of the xor operation between extractedString and keyString
+	bufferLength : the length of the data on which this function is working on
+
+	Apply the mathematical xor function to extractedString and keyString
+	if we are coding (isCoding == 1) then we switche the character from the source file then xor it
+	if we are decoding (isCoding == 0) then we xor the character from the source file then unscramble it
+	we can schemate it like this :
+	coding : 	original(a) -> scramble(x) -> xored(?)
+	decoding : 	xored(?) -> unxored(x) -> unscrambled(a)
+ */
+void XOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
+{
+	if (isCoding == 1)
+	{
+		int i;
+		for (i = 0; i < bufferLength; ++i)
+		{
+			xoredString[i] = scrambleAsciiTable[(unsigned char)extractedString[i]] ^ keyString[i];
+		}
+	} else{
+		int i;
+		for (i = 0; i < bufferLength; ++i)
+		{
+			xoredString[i] = unscrambleAsciiTable[(unsigned char)(extractedString[i] ^ keyString[i])];
+		}
+	}
+}
+
+
+/*
+	-int fillbuffer(FILE* mainFile, char* extractedString, char* keyString)
+	mainFile : pointer to the file given by the user
+	extractedString : will contains the data extracted from the source file in a string format
+	keyString : will contains a part of the unique key in a string format
+	returned value : the size of the data reed
+
+	read a packet of data from the source file
+	return the length of the packet which is the buffer size (BUFFER_SIZE)
+	it can be less at the final packet (if the file isn't a multiple of the buffer size)
+
+	former version (multiply execution time by 5) :
+	int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
+	{
+		int i = 0;
+
+		while(!feof(mainFile) && i < BUFFER_SIZE)
+		{
+			char charBuffer = fgetc(mainFile);
+			if (feof(mainFile)) break; //special debug for the last character in text files
+			extractedString[i] = charBuffer;
+			i++;
+		}
+
+		return i;
+	}
+ */
+int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
+{
+	int i = 0;
+
+	for (int i = 0; i < BUFFER_SIZE; ++i)
+	{
+		keyString[i] = generateNumber();
+	}
+
+	return fread(extractedString, 1, BUFFER_SIZE, mainFile);
+}
+
+
+/*
+	-void code(FILE* mainFile)
+	mainFile : pointer to the file given by the user
+
+	Controller for coding the source file
+ */
+void code (FILE* mainFile)
+{
+	int mainFileSize = strlen(fileName);
+	char codedFileName[mainFileSize+2];
+	char extractedString[BUFFER_SIZE] = "";
+	char keyString[BUFFER_SIZE] = "";
+	char xoredString[BUFFER_SIZE] = "";
+	FILE* codedFile;
+
+	// naming the file which will be crypted(get the source name and put a .x at the end)
+	strcpy(codedFileName, fileName);
+	codedFileName[mainFileSize] = '.';
+	codedFileName[mainFileSize+1] = 'x';
+	codedFileName[mainFileSize+2] = '\0';
+
+	// opening the output file
+	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
+		perror(codedFileName);
+		exit(EXIT_FAILURE);
+	}
+
+	// starting encryption
+	while(!feof(mainFile))
+	{
+		int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+		XOR(extractedString, keyString, xoredString, bufferLength);
+		fwrite(xoredString, sizeof(char), bufferLength, codedFile);
+	}
+	// closing the output file
+	fclose(codedFile);
+}
+
+
+/*
+	-void decode(FILE* mainFile)
+	mainFile : pointer to the file given by the user
+
+	controller for decoding the source file
+ */
+void decode(FILE* mainFile)
+{
+	int mainFileSize = strlen(fileName);
+	char decodedFileName[mainFileSize];
+	char extractedString[BUFFER_SIZE] = "";
+	char keyString[BUFFER_SIZE] = "";
+	char xoredString[BUFFER_SIZE] = "";
+	FILE* decodedFile;
+
+	// naming the file which will be decrypted (get the source name and cut the .x at the end)
+	strcpy(decodedFileName, fileName);
+	decodedFileName[mainFileSize-2] = '\0';
+
+	// opening the output file
+	if ((decodedFile = fopen(decodedFileName, "w+")) == NULL) {
+		perror(decodedFileName);
+		exit(EXIT_FAILURE);
+	}
+
+	// starting decryption
+	while(!feof(mainFile))
+	{
+		int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+		XOR(extractedString, keyString, xoredString, bufferLength);
+		fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
+	}
+	// closing the output file
+	fclose(decodedFile);
+}
+
+
+/*
+	-int main(int argc, char const* argv[])
+	argc : number of arguments passed in the terminal
+	argv : pointer to the arguments passed in the terminal
+	returned value : 0
+
+ */
+int main(int argc, char const *argv[])
+{
+	FILE* mainFile;
+	FILE* keyFile = NULL;
+
 	if ((progName = strrchr(argv[0], '/')) != NULL) {
 		++progName;
 	} else {
@@ -246,7 +334,7 @@ int main (int argc, char const *argv[])
 	}
 	if (argc < 2) {
 		usage(EXIT_FAILURE);
-	} else if (strcmp(argv[1], "-h") == 0) {
+	} else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "help") == 0) {
 		usage(EXIT_SUCCESS);
 	}
 	if ((fileName = strrchr(argv[1], '/')) != NULL) {
@@ -258,34 +346,30 @@ int main (int argc, char const *argv[])
 		perror(argv[1]);
 		return EXIT_FAILURE;
 	}
-	fseek(mainFile, 0, SEEK_END);
-	mainFileSize = (double)ftell(mainFile);
+	if (argc >= 3)
+	{
+		if ((keyFile = fopen(argv[2], "r")) == NULL) {
+			perror(argv[1]);
+			return EXIT_FAILURE;
+		}
+	}
 
-
-
-	char passPhrase[100];
-	int numberOfWord;
-	
+	char passPhrase[1000];
 	printf("Qu'avez vous à me dire ?\n>>");
-	fgets (passPhrase, 99, stdin);
-	numberOfWord = countWord(passPhrase);
-	char **tab = (char**) malloc (sizeof (char*) * numberOfWord) ;
-
-	getWord(passPhrase, tab);
+	fgets (passPhrase, 999, stdin);
+	hash(passPhrase);
+	scramble(keyFile);
 
 	if (*(argv[1]+strlen(argv[1])-2) == '.' && *(argv[1]+strlen(argv[1])-1) == 'x'){
-		decode(mainFile, tab, numberOfWord);
+		isCoding = 0;
+		unscramble();
+		decode(mainFile);
 	}
 	else{
-		code(mainFile, tab, numberOfWord);
+		isCoding = 1;
+		code(mainFile);
 	}
 
-	//on libère la mémoire
-	freeTab(tab, numberOfWord);
-	free (tab);
-
-	//on ferme le fichier
 	fclose(mainFile);
-
 	return 0;
 }
