@@ -23,7 +23,7 @@ Pour chiffrer / to crypt
 ```
 ./enigmaX FILE [KEYFILE]
 ```
-Pour déchiffrer
+Pour déchiffrer/ to decrypt
 ```
 ./enigmaX FILE.x [KEYFILE]
 ```
