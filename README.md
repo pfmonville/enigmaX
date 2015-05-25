@@ -1,4 +1,4 @@
-xoxor
+enigmaX
 =====
 permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre
 le mot de passe demandé au début est hashé puis sert de graine pour le PRNG
