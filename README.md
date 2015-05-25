@@ -1,6 +1,6 @@
 enigmaX
 =====
-permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre
+permet de chiffrer et de déchiffrer tout fichier donné en paramètre
 le mot de passe demandé au début est hashé puis sert de graine pour le PRNG
 le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder
 ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe)
