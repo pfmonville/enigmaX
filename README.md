@@ -6,13 +6,13 @@ le PRNG permet de fournir une clé unique égale à la longueur du fichier à co
 ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe)
 De plus un brouilleur est utilisé, il mélange la table des caractères (ascii)
 en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille
-matériel permettrait d'analyser la ram afin d'inverser les xor, le résultat
+matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat
 obtenu serait toujours illisible.
 
 Can crypt and decrypt any file given in argument. The password asked is hashed
 to be used as a seed for the PRNG. The PRNG gives a unique key
 which has the same length as the source file, thus the security is maximum
-(the only way to break through is by bruteforce). Moreover, a scambler is used,
+(the only way to break through is by bruteforce). Moreover, a scrambler is used,
 it scrambles the ascii table using the PRNG or the keyFile given to prevent
 an hardware failure allowing ram analysis to invert the xoring process, making
 such an exploit useless.
@@ -38,7 +38,7 @@ Pour déchiffrer/ to decrypt
   further help.
   
 -s | --standard:
-  put the scambler on off.
+  put the scrambler on off.
   
 KEYFILE:
   path to the keyfile, generate the scrambler instead of the password.
@@ -62,7 +62,7 @@ the command:
 enigmaX file2.x keyfile1
 ```
 
-will prompt for the password that encrypted file2, uses keyfile1 to generate the scambler then decrypt file2.x, file2.x is not modified.
+will prompt for the password that encrypted file2, uses keyfile1 to generate the scrambler then decrypt file2.x, file2.x is not modified.
 
 the command:
 
@@ -70,4 +70,4 @@ the command:
 enigmaX file3 -s
 ```
 
-will prompt for a password then crypt the file without using the scambler, resulting in using the unique key only.
+will prompt for a password then crypt the file without using the scrambler, resulting in using the unique key only.

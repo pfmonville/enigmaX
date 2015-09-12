@@ -13,7 +13,7 @@
 // Can crypt and decrypt any file given in argument. The password asked is hashed
 // to be used as a seed for the PRNG. The PRNG gives a unique key
 // which has the same length as the source file, thus the security is maximum
-// (the only way to break through is by bruteforce). Moreover, a scambler is used,
+// (the only way to break through is by bruteforce). Moreover, a scrambler is used,
 // it scrambles the ascii table using the PRNG or the keyFile given to prevent
 // an hardware failure allowing ram analysis to invert the xoring process, making
 // such an exploit useless.
@@ -29,6 +29,7 @@ handle folders
 crypted folders explorer
 graphical interface
 hidden password (not portable for now)
+special option (multi layer's password...)
  */
 
 
@@ -57,8 +58,8 @@ static const char *fileName;
 static uint64_t seed[2];
 static unsigned char scrambleAsciiTable[256];
 static unsigned char unscrambleAsciiTable[256] = "";
-static char isCoding = 1;
-static char scambling = 1;
+static char isCrypting = 1;
+static char scrambling = 1;
 static long numberOfBuffer;
 
 
@@ -74,10 +75,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tDESCRIPTION\n\t\tpermet de chiffrer et de déchiffrer tous fichiers donnés en paramètrele mot de passe demandé au début est hashé puis sert de graine pour le PRNGle PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe)De plus un brouilleur est utilisé, il mélange la table des caractères (ascii)en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faillematériel permettrait d'analyser la ram afin d'inverser les xor, le résultatobtenu serait toujours illisible.\nCan crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\twill prompt for a password then crypt the file then store it to file.x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2.x keyfile1\n\n\twill prompt for the password that encrypted file2, uses keyfile1 to generate the scambler then decrypt file2.x, file2.x is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\twill prompt for a password then crypt the file without using the scambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tDESCRIPTION\n\t\t(FR) permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n(EN) Can crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\twill prompt for a password then crypt the file then store it to file.x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2.x keyfile1\n\n\twill prompt for the password that encrypted file2, uses keyfile1 to generate the scrambler then decrypt file2.x, file2.x is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\twill prompt for a password then crypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\tthe file you want to decode must finish with .x\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scambler instead of the password\n\n\t-s --standard : \n\t\t put the scambler on off\n\n\t-h --help : \n\t\tfurther help\n", progName);
+			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\tthe file you want to decode must finish with .x\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\t put the scrambler on off\n\n\t-h --help : \n\t\tfurther help\n", progName);
 	}
 	exit(status);
 }
@@ -191,8 +192,8 @@ void unscramble(){
 	bufferLength : the length of the data on which this function is working on
 
 	Apply the mathematical xor function to extractedString and keyString
-	if we are coding (isCoding == 1) then we switche the character from the source file then xor it
-	if we are decoding (isCoding == 0) then we xor the character from the source file then unscramble it
+	if we are coding (isCrypting == 1) then we switche the character from the source file then xor it
+	if we are decoding (isCrypting == 0) then we xor the character from the source file then unscramble it
 	we can schemate all the coding/decoding xoring process like this :
 	coding : 	original:a -> scramble:x -> xored:?
 	decoding : 	xored(?) -> unxored(x) -> unscrambled(a)
@@ -216,8 +217,8 @@ void codingXOR(char* extractedString, char* keyString, char* xoredString, int bu
 
 	Here only for optimization purpose to limit the amount of conditions
 	Apply the mathematical xor function to extractedString and keyString
-	if we are coding (isCoding == 1) then we switche the character from the source file then xor it
-	if we are decoding (isCoding == 0) then we xor the character from the source file then unscramble it
+	if we are coding (isCrypting == 1) then we switche the character from the source file then xor it
+	if we are decoding (isCrypting == 0) then we xor the character from the source file then unscramble it
 	we can schemate all the coding/decoding xoring process like this :
 	coding : 	original(a) -> scramble(x) -> xored(?)
 	decoding : 	xored(?) -> unxored(x) -> unscrambled(a)
@@ -242,8 +243,8 @@ void decodingXOR(char* extractedString, char* keyString, char* xoredString, int 
 	Here only for optimization purpose so that there is the small amount
 	of condition possible when encrypt or decrypt
 	Apply the mathematical xor function to extractedString and keyString
-	if we are coding (isCoding == 1) then we switche the character from the source file then xor it
-	if we are decoding (isCoding == 0) then we xor the character from the source file then unscramble it
+	if we are coding (isCrypting == 1) then we switche the character from the source file then xor it
+	if we are decoding (isCrypting == 0) then we xor the character from the source file then unscramble it
 	we can schemate all the coding/decoding xoring process like this :
 	coding : 	original(a) -> scramble(x) -> xored(?)
 	decoding : 	xored(?) -> unxored(x) -> unscrambled(a)
@@ -318,7 +319,7 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 	static time_t startingTime;
 	time_t currentTime;
 
-	if(firstCall == 1){
+	if(firstCall){
 		startingTime = time(NULL);
 		firstCall = 0;
 	}
@@ -383,7 +384,7 @@ void code (FILE* mainFile)
 	// starting encryption
 	long bufferCount = 0; //keep trace of the task's completion
 	printf("starting encryption...\n");
-	if (scambling == 1){
+	if (scrambling){
 		while(!feof(mainFile))
 		{
 			int bufferLength = fillBuffer(mainFile, extractedString, keyString);
@@ -420,6 +421,9 @@ void decode(FILE* mainFile)
 	char xoredString[BUFFER_SIZE] = "";
 	FILE* decodedFile;
 
+	// Return the file to a unscramble ascii table
+	unscramble();
+
 	// naming the file which will be decrypted (get the source name and cut the .x at the end)
 	strcpy(decodedFileName, fileName);
 	decodedFileName[mainFileSize-2] = '\0';
@@ -433,7 +437,7 @@ void decode(FILE* mainFile)
 	// starting decryption
 	long bufferCount = 0; //keep trace of the task's completion
 	printf("starting decryption...\n");
-	if(scambling == 1){
+	if(scrambling){
 		while(!feof(mainFile))
 		{
 			int bufferLength = fillBuffer(mainFile, extractedString, keyString);
@@ -489,7 +493,7 @@ int main(int argc, char const *argv[])
 	if (argc >= 3)
 	{
 		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
-		scambling = 0;
+		scrambling = 0;
 		} else if ((keyFile = fopen(argv[2], "r")) == NULL) {
 			perror(argv[1]);
 			return EXIT_FAILURE;
@@ -501,6 +505,16 @@ int main(int argc, char const *argv[])
 	rewind(mainFile);
 	numberOfBuffer = mainFileSize / (BUFFER_SIZE);
 
+	char procedureResponse[10]; 
+	printf("Crypt(C) or Decrypt(D):");
+	fgets (procedureResponse, 9, stdin);
+	if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c'){
+		isCrypting = 1;
+	}
+	else{
+		isCrypting = 0;
+	}
+
 	char passPhrase[1000];
 	printf("Password:");
 	fgets (passPhrase, 999, stdin);
@@ -508,14 +522,11 @@ int main(int argc, char const *argv[])
 	hash(passPhrase);
 	scramble(keyFile);
 
-	if (*(argv[1]+strlen(argv[1])-2) == '.' && *(argv[1]+strlen(argv[1])-1) == 'x'){
-		isCoding = 0;
-		unscramble();
-		decode(mainFile);
+	if (isCrypting){
+		code(mainFile);
 	}
 	else{
-		isCoding = 1;
-		code(mainFile);
+		decode(mainFile);
 	}
 
 	fclose(mainFile);
