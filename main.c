@@ -30,6 +30,7 @@ crypted folders explorer
 graphical interface
 hidden password (not portable for now)
 special option (multi layer's password...)
+fix naming issues
  */
 
 
@@ -55,6 +56,7 @@ special option (multi layer's password...)
  */
 static const char *progName;
 static const char *fileName;
+static char pathToMainFile[1000] = "./";
 static uint64_t seed[2];
 static unsigned char scrambleAsciiTable[256];
 static unsigned char unscrambleAsciiTable[256] = "";
@@ -75,7 +77,7 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password followed by the crypting/decrypting of the file then store it to file1.x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2.x keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2.x, uses keyfile1 to generate the scrambler then decrypt file2.x, file2.x is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\twill prompt for a password then crypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\twill prompt for a password then crypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
 			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\t put the scrambler on off\n\n\t-h --help : \n\t\tfurther help\n", progName);
@@ -363,21 +365,29 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 void code (FILE* mainFile)
 {
 	int mainFileSize = strlen(fileName);
-	char codedFileName[mainFileSize+2];
+	char codedFileName[mainFileSize+1];
 	char extractedString[BUFFER_SIZE] = "";
 	char keyString[BUFFER_SIZE] = "";
 	char xoredString[BUFFER_SIZE] = "";
 	FILE* codedFile;
 
-	// naming the file which will be crypted(get the source name and put a .x at the end)
-	strcpy(codedFileName, fileName);
-	codedFileName[mainFileSize] = '.';
-	codedFileName[mainFileSize+1] = 'x';
-	codedFileName[mainFileSize+2] = '\0';
+	// naming the file which will be crypted (get the source name and its extension(if exists) and add an x to the file name)
+	char* ptrToExtension;
+	if((ptrToExtension = strrchr(fileName, '.')) != NULL){
+		size_t indexOfExtension = ptrToExtension - fileName;
+		strncpy(codedFileName, fileName, indexOfExtension);
+		codedFileName[indexOfExtension] = 'x';
+		strcpy(codedFileName + indexOfExtension + 1, ptrToExtension);
+	}
+	else{
+		strcpy(codedFileName, fileName);
+		codedFileName[mainFileSize] = 'x';
+	}
 
 	// opening the output file
-	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
-		perror(codedFileName);
+	strcat(pathToMainFile, codedFileName);
+	if ((codedFile = fopen(pathToMainFile, "w+")) == NULL) {
+		perror(pathToMainFile);
 		exit(EXIT_FAILURE);
 	}
 
@@ -415,7 +425,7 @@ void code (FILE* mainFile)
 void decode(FILE* mainFile)
 {
 	int mainFileSize = strlen(fileName);
-	char decodedFileName[mainFileSize];
+	char decodedFileName[mainFileSize+1];
 	char extractedString[BUFFER_SIZE] = "";
 	char keyString[BUFFER_SIZE] = "";
 	char xoredString[BUFFER_SIZE] = "";
@@ -424,12 +434,22 @@ void decode(FILE* mainFile)
 	// Return the file to a unscramble ascii table
 	unscramble();
 
-	// naming the file which will be decrypted (get the source name and cut the .x at the end)
-	strcpy(decodedFileName, fileName);
-	decodedFileName[mainFileSize-2] = '\0';
+	// naming the file which will be decrypted (get the source name and its extension(if exists) and add an x to the file name)
+	char* ptrToExtension;
+	if((ptrToExtension = strrchr(fileName, '.')) != NULL){
+		size_t indexOfExtension = ptrToExtension - fileName;
+		strncpy(decodedFileName, fileName, indexOfExtension);
+		decodedFileName[indexOfExtension] = 'x';
+		strcpy(decodedFileName + indexOfExtension + 1, ptrToExtension);
+	}
+	else{
+		strcpy(decodedFileName, fileName);
+		decodedFileName[mainFileSize] = 'x';
+	}
 
 	// opening the output file
-	if ((decodedFile = fopen(decodedFileName, "w+")) == NULL) {
+	strcat(pathToMainFile, decodedFileName);
+	if ((decodedFile = fopen(pathToMainFile, "w+")) == NULL) {
 		perror(decodedFileName);
 		exit(EXIT_FAILURE);
 	}
@@ -483,6 +503,7 @@ int main(int argc, char const *argv[])
 	}
 	if ((fileName = strrchr(argv[1], '/')) != NULL) {
 		++fileName;
+		strncpy(pathToMainFile, argv[1], fileName - argv[1]);		
 	} else {
 		fileName = argv[1];
 	}
