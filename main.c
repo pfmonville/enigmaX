@@ -18,8 +18,19 @@
 // an hardware failure allowing ram analysis to invert the xoring process, making
 // such an exploit useless.
 //
-// USAGE : enigmaX file [keyFile]
-// 		then enter a password to crypt or decrypt if the file given is a .x
+// USAGE : 
+//		enigmax [-h | --help] FILE [-s | --standard | KEYFILE]
+//
+// 		code or decode the given file
+//
+// 		KEYFILE: 
+// 			path to a keyfile that is used to generate the scrambler instead of the password
+//
+// 		-s --standard : 
+// 	 		put the scrambler off
+//
+// 		-h --help : 
+// 			further help
 //
 // ===========================================================================
 
@@ -29,8 +40,7 @@ handle folders
 crypted folders explorer
 graphical interface
 hidden password (not portable for now)
-special option (multi layer's password...)
-fix naming issues
+special option (multi layer's password, hide extension + random final name)
  */
 
 
@@ -77,10 +87,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\twill prompt for a password then crypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\tlet you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\t put the scrambler on off\n\n\t-h --help : \n\t\tfurther help\n", progName);
+			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\t put the scrambler off\n\n\t-h --help : \n\t\tfurther help\n", progName);
 	}
 	exit(status);
 }
@@ -133,7 +143,7 @@ void hash(char* password)
 
 /*
 	-void scramble(FILE* keyFile)
-	keyFile : can be null, if present random256 takes its values from it
+	keyFile : can be null, if present it passes through all the keyfile to scramble the ascii table
 
 	scramble the ascii table assuring that there is no duplicate
 	inspired by the Enigma machine; switching letters but without its weekness,
@@ -250,6 +260,9 @@ void decodingXOR(char* extractedString, char* keyString, char* xoredString, int 
 	we can schemate all the coding/decoding xoring process like this :
 	coding : 	original(a) -> scramble(x) -> xored(?)
 	decoding : 	xored(?) -> unxored(x) -> unscrambled(a)
+	but here we don't scramble so it is:
+	coding : original(a) -> xored(?)
+	decoding: xored(?) -> unxored(a)
  */
 void standardXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {

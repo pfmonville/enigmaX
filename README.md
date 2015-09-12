@@ -38,13 +38,11 @@ Pour déchiffrer/ to decrypt
   further help.
   
 -s | --standard:
-  put the scrambler on off.
+  put the scrambler off.
   
 KEYFILE:
   path to the keyfile, generate the scrambler instead of the password.
 
-Il faut laisser le .x comme extension du fichier quand on met celui-ci dans la console afin de le déchiffrer.
-to decode the file must have the .x extension.
 
 ## Example :
 
@@ -54,15 +52,15 @@ the command
 enigmaX file1
 ```
 
-will prompt for a password then crypt the file then store it to file.x in the same folder, file1 is not modified.
+let you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.
 
 the command:
 
 ```
-enigmaX file2.x keyfile1
+enigmaX file2 keyfile1
 ```
 
-will prompt for the password that encrypted file2, uses keyfile1 to generate the scrambler then decrypt file2.x, file2.x is not modified.
+let you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.
 
 the command:
 
@@ -70,4 +68,4 @@ the command:
 enigmaX file3 -s
 ```
 
-will prompt for a password then crypt the file without using the scrambler, resulting in using the unique key only.
+let you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.
