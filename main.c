@@ -36,11 +36,10 @@
 
 /*
 TODO:
-handle folders
 crypted folders explorer
 graphical interface
 hidden password (not portable for now)
-special option (multi layer's password, hide extension + random final name)
+special option (multi layer's password, hide extension)
  */
 
 
@@ -53,6 +52,11 @@ special option (multi layer's password, hide extension + random final name)
 #include <stdint.h>
 #include <ctype.h>
 #include <time.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
 
 
 /*
@@ -384,18 +388,7 @@ void code (FILE* mainFile)
 	char xoredString[BUFFER_SIZE] = "";
 	FILE* codedFile;
 
-	// naming the file which will be crypted (get the source name and its extension(if exists) and add an x to the file name)
-	char* ptrToExtension;
-	if((ptrToExtension = strrchr(fileName, '.')) != NULL){
-		size_t indexOfExtension = ptrToExtension - fileName;
-		strncpy(codedFileName, fileName, indexOfExtension);
-		codedFileName[indexOfExtension] = 'x';
-		strcpy(codedFileName + indexOfExtension + 1, ptrToExtension);
-	}
-	else{
-		strcpy(codedFileName, fileName);
-		codedFileName[mainFileSize] = 'x';
-	}
+	sprintf(codedFileName, "x%s", fileName);
 
 	// opening the output file
 	strcat(pathToMainFile, codedFileName);
@@ -447,18 +440,9 @@ void decode(FILE* mainFile)
 	// Return the file to a unscramble ascii table
 	unscramble();
 
-	// naming the file which will be decrypted (get the source name and its extension(if exists) and add an x to the file name)
-	char* ptrToExtension;
-	if((ptrToExtension = strrchr(fileName, '.')) != NULL){
-		size_t indexOfExtension = ptrToExtension - fileName;
-		strncpy(decodedFileName, fileName, indexOfExtension);
-		decodedFileName[indexOfExtension] = 'x';
-		strcpy(decodedFileName + indexOfExtension + 1, ptrToExtension);
-	}
-	else{
-		strcpy(decodedFileName, fileName);
-		decodedFileName[mainFileSize] = 'x';
-	}
+	// naming the file which will be decrypted
+	sprintf(decodedFileName, "x%s", fileName);
+
 
 	// opening the output file
 	strcat(pathToMainFile, decodedFileName);
@@ -492,6 +476,37 @@ void decode(FILE* mainFile)
 }
 
 
+
+/*
+	-int isAdirectory(char* path)
+	path : string indicated the path of the file/directory
+	returned value : 0 or 1
+
+	indicates if the object with this path is a directory or not
+
+*/
+int isADirectory(char* path){
+	struct stat statStruct;
+    int statStatus = stat(path, &statStruct);
+    if(-1 == statStatus) {
+        if(ENOENT == errno) {
+            printf("file's path is not correct, one or several directories and or file are missing\n");
+        } else {
+            perror("stat");
+            exit(1);
+        }
+    } else {
+        if(S_ISDIR(statStruct.st_mode)) {
+            return 1; //it's a directory
+        } else {
+            return 0; //it's not a directory
+        }
+    }
+    exit(1);
+}
+
+
+
 /*
 	-int main(int argc, char const* argv[])
 	argc : number of arguments passed in the terminal
@@ -514,16 +529,65 @@ int main(int argc, char const *argv[])
 	} else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
 		usage(EXIT_SUCCESS);
 	}
-	if ((fileName = strrchr(argv[1], '/')) != NULL) {
-		++fileName;
-		strncpy(pathToMainFile, argv[1], fileName - argv[1]);		
-	} else {
-		fileName = argv[1];
+	char *copyOfArgv1 = (char*) malloc(sizeof(char) * strlen(argv[1]));
+	strcpy(copyOfArgv1, argv[1]);
+
+	if (isADirectory(copyOfArgv1)){
+		char command[1008];
+		
+		// get the name of the folder in a string and get the path
+		if ((fileName = strrchr(argv[1], '/')) != NULL) {
+			if (strlen(fileName) == 1){
+				char *dirName = (char*) malloc( sizeof(char) * strlen(argv[1]) + 5);
+				strcpy(dirName, argv[1]);
+				printf("%c\n", *(dirName+(fileName-argv[1])));
+				*(dirName+(fileName-argv[1])) = '\0';
+				if ((fileName = strrchr(dirName, '/')) != NULL){
+					++fileName;
+					strncpy(pathToMainFile, dirName, fileName - dirName);
+				}
+				else{
+					fileName = dirName;
+				}
+			}
+			else {
+				++fileName;
+				strncpy(pathToMainFile, argv[1], fileName - argv[1]);
+			}
+		}
+		else {
+			fileName = argv[1];
+		}
+		// get the full path of the tarFile in a dynamic variable tarName
+		char *tarName = (char*) malloc(sizeof(char) * strlen(argv[1]) + 5);
+		sprintf (tarName, "%s%s.tar", pathToMainFile, fileName);
+		sprintf (command, "tar -cf %s %s &>/dev/null", tarName, argv[1]); 
+		// make the archive of the folder with tar
+		printf("tarName = %s , argv[1] = %s \n", tarName, argv[1]);
+		printf("regrouping the folder in one file... ");
+		system(command);
+		printf("done\n");
+		fileName = tarName + strlen(pathToMainFile);
+
+		// trying to open the new archive
+		if ((mainFile = fopen(tarName, "r")) == NULL) {
+			perror(tarName);
+			return EXIT_FAILURE;
+		}
 	}
-	if ((mainFile = fopen(argv[1], "r")) == NULL) {
-		perror(argv[1]);
-		return EXIT_FAILURE;
+	else{
+		if ((fileName = strrchr(argv[1], '/')) != NULL) {
+			++fileName;
+			strncpy(pathToMainFile, argv[1], fileName - argv[1]);		
+		} else {
+			fileName = argv[1];
+		}
+		if ((mainFile = fopen(argv[1], "r")) == NULL) {
+			perror(argv[1]);
+			return EXIT_FAILURE;
+		}
 	}
+	
 	if (argc >= 3)
 	{
 		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
@@ -542,10 +606,10 @@ int main(int argc, char const *argv[])
 	char procedureResponse[10]; 
 	printf("Crypt(C) or Decrypt(D):");
 	fgets (procedureResponse, 9, stdin);
-	if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c'){
+	if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c') {
 		isCrypting = 1;
 	}
-	else{
+	else {
 		isCrypting = 0;
 	}
 
