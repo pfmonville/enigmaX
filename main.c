@@ -38,8 +38,7 @@
 TODO:
 crypted folders explorer
 graphical interface
-hidden password (not portable for now)
-special option (multi layer's password, hide extension)
+special option (multi layer's password, hide extension, randomize the name)
  */
 
 
@@ -95,7 +94,7 @@ static void usage(int status)
 			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\tlet you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\t put the scrambler off\n\n\t-h --help : \n\t\tfurther help\n", progName);
+			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\tput the scrambler off\n\n\t-h --help : \n\t\tfurther help\n", progName);
 	}
 	exit(status);
 }
@@ -114,6 +113,46 @@ long ceilRound(float numberToBeRounded){
 		return (long) numberToBeRounded + 1;
 	}
 	return (long) numberToBeRounded;
+}
+
+
+/*
+	-void processTarString(char* string)
+
+	change string placing '\' just before every spaces in order to 
+	the tar command to work with files/directories with spaces in their names
+*/
+char* processTarString(char* string){
+	int numberOfSpace = 0;
+	char* resultString;
+
+	for (int i = 0; i < strlen(string); ++i)
+	{
+		if (string[i] == ' ')	
+		{
+			numberOfSpace++;
+		}
+	}
+
+	if (numberOfSpace == 0) //just returns the same string basicaly
+	{
+		resultString = (char*) calloc(1, sizeof(char)* (strlen(string)));
+		strcat(resultString, string);
+		return resultString;
+	}
+
+	resultString = (char*) calloc(1, sizeof(char)* (strlen(string) + numberOfSpace + 1));
+	for (int i = 0, j = 0; i < strlen(string); ++i, ++j)
+	{
+		if (string[i] == ' ')
+		{
+			resultString[j] = '\\';
+			j++;
+		}
+		resultString[j] = string[i];
+	}
+
+	return resultString;
 }
 
 /*
@@ -383,7 +422,7 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
        printf(" ");
 
     // go back to the beginning of the line.
-    // other way (with ANSI CODE) previous line then erase it : printf("] %.0f\n\033[F\033[J", timeTillEnd);
+    // other way (with ANSI CODE) go to previous line then erase it : printf("] %.0f\n\033[F\033[J", timeTillEnd);
     printf("] %.0f        \r", timeTillEnd);
     fflush(stdout);
 }
@@ -436,7 +475,7 @@ void code (FILE* mainFile)
 	//if the first file was a directory then delete the archive made before crypting
 	if (_isADirectory)
 	{
-		char* tarFile = (char*) malloc (sizeof(char) * (strlen(pathToMainFile) + strlen(fileName) + 1));
+		char* tarFile = (char*) calloc (1, sizeof(char) * (strlen(pathToMainFile) + strlen(fileName) + 1));
 		strcpy(tarFile, pathToMainFile);
 		strcat(tarFile, fileName);
 		remove(tarFile);
@@ -501,7 +540,7 @@ void decode(FILE* mainFile)
 
 
 /*
-	-int isAdirectory(char* path)
+	-int isADirectory(char* path)
 	path : string indicated the path of the file/directory
 	returned value : 0 or 1
 
@@ -550,26 +589,43 @@ int main(int argc, char const *argv[])
 		progName = argv[0];
 	}
 	if (argc < 2) {
-		usage(EXIT_FAILURE);
+		usage(1);
 	} else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
-		usage(EXIT_SUCCESS);
+		usage(0);
 	}
-	char *copyOfArgv1 = (char*) malloc(sizeof(char) * strlen(argv[1]));
-	strcpy(copyOfArgv1, argv[1]);
 
-	//outside his scope because we need to free it at the end
+	if (argc >= 3)
+	{
+		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
+		scrambling = 0;
+		} else if ((keyFile = fopen(argv[2], "r")) == NULL) {
+			perror(argv[2]);
+			usage(1);
+		}
+	}
+
+	if (argv[1][strlen(argv[1])-1] == '/' && argv[1][strlen(argv[1])-2] == '/')
+	{
+		printf("error: several trailing '/' in the path of your file\n");
+		printf("exiting\n");
+		exit(1);
+	}
+
+	//outside their scope because we need to free them at the end
 	char* tarName;
 	char* dirName;
+	char *copyOfArgv1 = (char*) calloc(1, sizeof(char) * strlen(argv[1]));
+	strcpy(copyOfArgv1, argv[1]);
 	if (isADirectory(copyOfArgv1)){
-		char command[1008];
+		char command[1008] = {'\0'};
 		//we don't need that anymore
-		free(copyOfArgv1);
-		printf("regrouping the folder in one file...");
+		printf("regrouping the folder in one file using tar, may be long...");
+		fflush(stdout);
 		// get the name of the folder in a string and get the path
 		if ((fileName = strrchr(argv[1], '/')) != NULL) {
 			//if the '/' is the last character in the string, delete it and get the fileName again
 			if (strlen(fileName) == 1){
-				dirName = (char*) malloc( sizeof(char) * strlen(argv[1]) + 5);
+				dirName = (char*) calloc(1, sizeof(char) * (strlen(argv[1]) + 5));
 				strcpy(dirName, argv[1]);
 				*(dirName+(fileName-argv[1])) = '\0';
 				if ((fileName = strrchr(dirName, '/')) != NULL){
@@ -591,12 +647,33 @@ int main(int argc, char const *argv[])
 			fileName = argv[1];
 		}
 		// get the full path of the tarFile in a dynamic variable tarName
-		tarName = (char*) malloc(sizeof(char) * strlen(fileName) + 5);
+		tarName = (char*) calloc(1, sizeof(char) * (strlen(fileName) + 5));
 		sprintf (tarName, "%s.tar", fileName);
-		sprintf (command, "cd %s && tar -cf %s %s &>/dev/null", pathToMainFile, tarName, fileName);
+
+		//all of the following is to make a clean string for the tar commands (taking care of spaces)
+		char* cleanFileName       = processTarString((char*)fileName);
+		char* cleanPathToMainFile = processTarString(pathToMainFile);
+		char* cleanTarName        = processTarString(tarName);
+		
+		// use of cd to prevent tar to archive all the path architecture 
+		// (ex: /usr/myname/my/path/theFolderWeWant/)
+		sprintf (command, "cd %s && tar -cf %s %s &>/dev/null", cleanPathToMainFile, cleanTarName, cleanFileName); //&>/dev/null
+
+		//free the temporary strings
+		free(cleanPathToMainFile);
+		free(cleanTarName);
+		free(cleanFileName);
+
 		// make the archive of the folder with tar
-		system(command);
-		printf("done\n");
+		int status;
+		if((status = system(command)) != 0){ //if problems when taring
+			printf("\nerror: unable to tar your file\n");
+			printf("exiting\n");
+			exit(1);
+		}else{
+			printf("\rregrouping the folder in one file using tar...done          \n");			
+		}
+
 		fileName = tarName;
 
 		// trying to open the new archive
@@ -619,16 +696,7 @@ int main(int argc, char const *argv[])
 			return EXIT_FAILURE;
 		}
 	}
-
-	if (argc >= 3)
-	{
-		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
-		scrambling = 0;
-		} else if ((keyFile = fopen(argv[2], "r")) == NULL) {
-			perror(argv[1]);
-			return EXIT_FAILURE;
-		}
-	}
+	free(copyOfArgv1);
 
 	fseek(mainFile, 0, SEEK_END);
 	long mainFileSize = ftell(mainFile);
@@ -642,6 +710,7 @@ int main(int argc, char const *argv[])
 	char procedureResponse[10]; 
 	printf("Crypt(C) or Decrypt(D):");
 	fgets (procedureResponse, 9, stdin);
+	printf("\033[F\033[J");
 	if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c') {
 		isCrypting = 1;
 	}
@@ -662,7 +731,6 @@ int main(int argc, char const *argv[])
 	else{
 		decode(mainFile);
 	}
-
 	printf("done                                                                  \n");
 	fclose(mainFile);
 
