@@ -589,7 +589,6 @@ int main(int argc, char const *argv[])
 		}
 		else {
 			fileName = argv[1];
-			printf("\n%s\n", fileName);
 		}
 		// get the full path of the tarFile in a dynamic variable tarName
 		tarName = (char*) malloc(sizeof(char) * strlen(fileName) + 5);
