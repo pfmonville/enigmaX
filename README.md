@@ -1,6 +1,6 @@
 enigmaX
 =====
-permet de chiffrer et de déchiffrer tout fichier donné en paramètre
+permet de chiffrer et de déchiffrer toutes données entrées en paramètre
 le mot de passe demandé au début est hashé puis sert de graine pour le PRNG
 le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder
 ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe)
@@ -9,7 +9,7 @@ en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille
 matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat
 obtenu serait toujours illisible.
 
-Can crypt and decrypt any file given in argument. The password asked is hashed
+Can crypt and decrypt any data given in argument. The password asked is hashed
 to be used as a seed for the PRNG. The PRNG gives a unique key
 which has the same length as the source file, thus the security is maximum
 (the only way to break through is by bruteforce). Moreover, a scrambler is used,

@@ -71,6 +71,7 @@ special option (multi layer's password, hide extension)
 static const char *progName;
 static const char *fileName;
 static char pathToMainFile[1000] = "./";
+static char _isADirectory;
 static uint64_t seed[2];
 static unsigned char scrambleAsciiTable[256];
 static unsigned char unscrambleAsciiTable[256] = "";
@@ -91,7 +92,7 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt files\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer tous fichiers donnés en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any file given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\tlet you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\tlet you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
 			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\t put the scrambler off\n\n\t-h --help : \n\t\tfurther help\n", progName);
@@ -99,6 +100,21 @@ static void usage(int status)
 	exit(status);
 }
 
+
+/*
+	-long ceilRound(float numberToBeRounded)
+	returned value : the number rounded (ceil form)
+
+	to prevent from importing all math.h for just one function 
+	I had to add it myself
+*/
+long ceilRound(float numberToBeRounded){
+	if (numberToBeRounded - (long) numberToBeRounded > 0)
+	{
+		return (long) numberToBeRounded + 1;
+	}
+	return (long) numberToBeRounded;
+}
 
 /*
 	-uint64_t generateNumber(void)
@@ -344,11 +360,11 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 	}
 
     // numberOfSteps defines the number of times the bar updates.
-    if ( currentIteration % (maximalIteration/numberOfSteps +1) != 0 ) return;
+    if ( currentIteration % (maximalIteration/numberOfSteps + 1) != 0 ) return;
 
     // Calculate the ratio of complete-to-incomplete.
-    float ratio = currentIteration / (float) maximalIteration;
-    int c = ratio * numberOfSegments;
+    float ratio = (float) currentIteration / (float) maximalIteration;
+    int loadBarCursorPosition = ratio * numberOfSegments;
 
     // get the clock now
 	currentTime = time(NULL);
@@ -360,10 +376,10 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
     printf(" %3d%% [", (int)(ratio*100));
 
     // Show the loading bar.
-    for (int currentIteration=0; currentIteration<c; currentIteration++)
+    for (int i = 0; i < loadBarCursorPosition; i++)
        printf("=");
 
-    for (int currentIteration=c; currentIteration<numberOfSegments; currentIteration++)
+    for (int i = loadBarCursorPosition; i < numberOfSegments; i++)
        printf(" ");
 
     // go back to the beginning of the line.
@@ -388,12 +404,10 @@ void code (FILE* mainFile)
 	char xoredString[BUFFER_SIZE] = "";
 	FILE* codedFile;
 
-	sprintf(codedFileName, "x%s", fileName);
-
+	sprintf(codedFileName, "%sx%s", pathToMainFile, fileName);
 	// opening the output file
-	strcat(pathToMainFile, codedFileName);
-	if ((codedFile = fopen(pathToMainFile, "w+")) == NULL) {
-		perror(pathToMainFile);
+	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
+		perror(codedFileName);
 		exit(EXIT_FAILURE);
 	}
 
@@ -419,6 +433,15 @@ void code (FILE* mainFile)
 	}
 	// closing the output file
 	fclose(codedFile);
+	//if the first file was a directory then delete the archive made before crypting
+	if (_isADirectory)
+	{
+		char* tarFile = (char*) malloc (sizeof(char) * (strlen(pathToMainFile) + strlen(fileName) + 1));
+		strcpy(tarFile, pathToMainFile);
+		strcat(tarFile, fileName);
+		remove(tarFile);
+		free(tarFile);
+	}
 }
 
 
@@ -497,8 +520,10 @@ int isADirectory(char* path){
         }
     } else {
         if(S_ISDIR(statStruct.st_mode)) {
+        	_isADirectory = 1;
             return 1; //it's a directory
         } else {
+        	_isADirectory = 0;
             return 0; //it's not a directory
         }
     }
@@ -532,19 +557,25 @@ int main(int argc, char const *argv[])
 	char *copyOfArgv1 = (char*) malloc(sizeof(char) * strlen(argv[1]));
 	strcpy(copyOfArgv1, argv[1]);
 
+	//outside his scope because we need to free it at the end
+	char* tarName;
+	char* dirName;
 	if (isADirectory(copyOfArgv1)){
 		char command[1008];
-		
+		//we don't need that anymore
+		free(copyOfArgv1);
+		printf("regrouping the folder in one file...");
 		// get the name of the folder in a string and get the path
 		if ((fileName = strrchr(argv[1], '/')) != NULL) {
+			//if the '/' is the last character in the string, delete it and get the fileName again
 			if (strlen(fileName) == 1){
-				char *dirName = (char*) malloc( sizeof(char) * strlen(argv[1]) + 5);
+				dirName = (char*) malloc( sizeof(char) * strlen(argv[1]) + 5);
 				strcpy(dirName, argv[1]);
-				printf("%c\n", *(dirName+(fileName-argv[1])));
 				*(dirName+(fileName-argv[1])) = '\0';
 				if ((fileName = strrchr(dirName, '/')) != NULL){
 					++fileName;
 					strncpy(pathToMainFile, dirName, fileName - dirName);
+					pathToMainFile[fileName - dirName] = '\0';
 				}
 				else{
 					fileName = dirName;
@@ -553,25 +584,27 @@ int main(int argc, char const *argv[])
 			else {
 				++fileName;
 				strncpy(pathToMainFile, argv[1], fileName - argv[1]);
+				pathToMainFile[fileName - argv[1]] = '\0';
 			}
 		}
 		else {
 			fileName = argv[1];
+			printf("\n%s\n", fileName);
 		}
 		// get the full path of the tarFile in a dynamic variable tarName
-		char *tarName = (char*) malloc(sizeof(char) * strlen(argv[1]) + 5);
-		sprintf (tarName, "%s%s.tar", pathToMainFile, fileName);
-		sprintf (command, "tar -cf %s %s &>/dev/null", tarName, argv[1]); 
+		tarName = (char*) malloc(sizeof(char) * strlen(fileName) + 5);
+		sprintf (tarName, "%s.tar", fileName);
+		sprintf (command, "cd %s && tar -cf %s %s &>/dev/null", pathToMainFile, tarName, fileName);
 		// make the archive of the folder with tar
-		printf("tarName = %s , argv[1] = %s \n", tarName, argv[1]);
-		printf("regrouping the folder in one file... ");
 		system(command);
 		printf("done\n");
-		fileName = tarName + strlen(pathToMainFile);
+		fileName = tarName;
 
 		// trying to open the new archive
-		if ((mainFile = fopen(tarName, "r")) == NULL) {
-			perror(tarName);
+		char pathPlusName[strlen(pathToMainFile)+strlen(fileName)];
+		sprintf(pathPlusName, "%s%s", pathToMainFile, fileName);
+		if ((mainFile = fopen(pathPlusName, "r")) == NULL) {
+			perror(pathPlusName);
 			return EXIT_FAILURE;
 		}
 	}
@@ -587,7 +620,7 @@ int main(int argc, char const *argv[])
 			return EXIT_FAILURE;
 		}
 	}
-	
+
 	if (argc >= 3)
 	{
 		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
@@ -601,7 +634,11 @@ int main(int argc, char const *argv[])
 	fseek(mainFile, 0, SEEK_END);
 	long mainFileSize = ftell(mainFile);
 	rewind(mainFile);
-	numberOfBuffer = mainFileSize / (BUFFER_SIZE);
+	numberOfBuffer = ceilRound((float)mainFileSize / (float)(BUFFER_SIZE));
+	if (numberOfBuffer < 1)
+	{
+		numberOfBuffer = 1;
+	}
 
 	char procedureResponse[10]; 
 	printf("Crypt(C) or Decrypt(D):");
@@ -627,8 +664,12 @@ int main(int argc, char const *argv[])
 		decode(mainFile);
 	}
 
-	fclose(mainFile);
 	printf("done                                                                  \n");
+	fclose(mainFile);
+
+	//we can free (last use in code/decode)
+	free(tarName);
+	free(dirName);
 
 	return 0;
 }
