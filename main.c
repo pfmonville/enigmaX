@@ -61,7 +61,7 @@ special option (multi layer's password, hide extension, randomize the name)
 /*
 	constants
  */
-#define BUFFER_SIZE 16384  //16384
+#define BUFFER_SIZE 16384  //16384 //8192
 
 
 /*
@@ -447,6 +447,7 @@ void code (FILE* mainFile)
 	// opening the output file
 	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
 		perror(codedFileName);
+		printf("exiting\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -510,6 +511,7 @@ void decode(FILE* mainFile)
 	strcat(pathToMainFile, decodedFileName);
 	if ((decodedFile = fopen(pathToMainFile, "w+")) == NULL) {
 		perror(decodedFileName);
+		printf("exiting\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -552,9 +554,10 @@ int isADirectory(char* path){
     int statStatus = stat(path, &statStruct);
     if(-1 == statStatus) {
         if(ENOENT == errno) {
-            printf("file's path is not correct, one or several directories and or file are missing\n");
+            printf("error: file's path is not correct, one or several directories and or file are missing\n");
         } else {
             perror("stat");
+            printf("exiting\n");
             exit(1);
         }
     } else {
@@ -566,6 +569,7 @@ int isADirectory(char* path){
             return 0; //it's not a directory
         }
     }
+    printf("exiting\n");
     exit(1);
 }
 
@@ -671,7 +675,7 @@ int main(int argc, char const *argv[])
 			printf("exiting\n");
 			exit(1);
 		}else{
-			printf("\rregrouping the folder in one file using tar...done          \n");			
+			printf("\rregrouping the folder in one file using tar... Done          \n");			
 		}
 
 		fileName = tarName;
@@ -681,6 +685,7 @@ int main(int argc, char const *argv[])
 		sprintf(pathPlusName, "%s%s", pathToMainFile, fileName);
 		if ((mainFile = fopen(pathPlusName, "r")) == NULL) {
 			perror(pathPlusName);
+			printf("exiting\n");
 			return EXIT_FAILURE;
 		}
 	}
@@ -693,6 +698,7 @@ int main(int argc, char const *argv[])
 		}
 		if ((mainFile = fopen(argv[1], "r")) == NULL) {
 			perror(argv[1]);
+			printf("exiting\n");
 			return EXIT_FAILURE;
 		}
 	}
@@ -731,7 +737,7 @@ int main(int argc, char const *argv[])
 	else{
 		decode(mainFile);
 	}
-	printf("done                                                                  \n");
+	printf("Done                                                                  \n");
 	fclose(mainFile);
 
 	//we can free (last use in code/decode)
