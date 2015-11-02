@@ -117,6 +117,51 @@ long ceilRound(float numberToBeRounded){
 
 
 /*
+	void clearBuffer()
+
+	empty the buffer	
+*/
+void clearBuffer()	
+{
+    int charInBuffer = 0;
+    while (charInBuffer != '\n' && charInBuffer != EOF)
+    {
+        charInBuffer = getchar();
+    }
+}
+
+/*
+	-int readStr(char *str, unsigned long size)
+	returned value : the string 'str' of size 'size'
+
+	basicaly, it's doing a fgets but take care of the buffer
+*/
+int readString(char *string, unsigned long size)
+{
+    char *EOFPos = NULL;
+    
+    if(fgets(string, size, stdin) != NULL)	
+    {
+        EOFPos = strchr(string, '\n'); 
+        if(EOFPos != NULL)	
+        {
+            *EOFPos = '\0';	
+        }
+        else	
+        {
+            clearBuffer();	
+        }
+        return 1;
+    }
+    else
+    {
+        clearBuffer();  
+        return 0;
+    }
+}
+
+
+/*
 	-void processTarString(char* string)
 
 	change string placing '\' just before every spaces in order to 
@@ -713,20 +758,23 @@ int main(int argc, char const *argv[])
 		numberOfBuffer = 1;
 	}
 
-	char procedureResponse[10]; 
-	printf("Crypt(C) or Decrypt(D):");
-	fgets (procedureResponse, 9, stdin);
-	printf("\033[F\033[J");
-	if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c') {
-		isCrypting = 1;
-	}
-	else {
-		isCrypting = 0;
-	}
+	char procedureResponse[2]; 
+	isCrypting = -1;
+	do{
+		printf("Crypt(C) or Decrypt(D):");
+		readString(procedureResponse, 2);
+		printf("\033[F\033[J");
+		if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c') {
+			isCrypting = 1;
+		}
+		else if(procedureResponse[0] == 'D' || procedureResponse[0] == 'd'){
+			isCrypting = 0;
+		}
+	}while(isCrypting == -1);
 
 	char passPhrase[16384];
 	printf("Password:");
-	fgets (passPhrase, 16383, stdin);
+	readString(passPhrase, 16383);
 	printf("\033[F\033[J");
 	hash(passPhrase);
 	scramble(keyFile);
