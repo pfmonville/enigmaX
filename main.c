@@ -78,6 +78,8 @@ static char isCrypting = 1;
 static char scrambling = 1;
 static long numberOfBuffer;
 
+char passPhrase[16384];
+uint64_t passIndex = 0;
 
 /*
 	-static void usage(int status)
@@ -91,10 +93,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coderainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashedto be used as a seed for the PRNG. The PRNG gives a unique keywhich has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to preventan hardware failure allowing ram analysis to invert the xoring process, makingsuch an exploit useless.\n\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\n\n\t\t%s file1\n\n\t\tlet you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as file1x in the same folder, file1 is not modified.\n\n\tthe command:\n\n\t\t%s file2 keyfile1\n\n\tlet you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\n\n\t\t%s file3 -s\n\n\tlet you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG. The PRNG gives a unique key which has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to prevent an hardware failure allowing ram analysis to invert the xoring process, making such an exploit useless.\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command:\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\t%s file3 -s\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Usage: %s [-h | --help] FILE [-s | --standard | KEYFILE]\n\n\tcode or decode the given file\n\n\tKEYFILE: \n\t\tpath to a keyfile that is used to generate the scrambler instead of the password\n\n\t-s --standard : \n\t\tput the scrambler off\n\n\t-h --help : \n\t\tfurther help\n", progName);
+			"Usage : %s [-h | --help] FILE [-s | --standard | KEYFILE]\nOptions :\n  -h --help :\t\tfurther help\n  -s --standard :\tput the scrambler off\n  KEYFILE :\t\tpath to a keyfile that generates the scrambler instead of the password\n", progName);
 	}
 	exit(status);
 }
@@ -200,50 +202,92 @@ char* processTarString(char* string){
 	return resultString;
 }
 
+
+/*
+	-static inline uint64_t rotationLinearTransformation(const uint64_t seed, int constant)
+	seed : the seed which will have the rotation
+	constant : number which has to be between 1 and 63
+	returned value :  uint64_t number (equivalent to long long but on all OS)
+
+	rotation function for generateNumber
+	part of the xoroshiro128+ algorythm :
+	http://xoroshiro.di.unimi.it/xoroshiro128plus.c
+ */
+static inline uint64_t rotationLinearTransformation(const uint64_t seed, int constant) {
+	return (seed << constant) | (seed >> (64 - constant));
+}
+
 /*
 	-uint64_t generateNumber(void)
 	returned value :  uint64_t number (equivalent to long long but on all OS)
 
 	random number generator
-	with the Xorshift+ algorythm which is one of the quickiest PRNG
+	with the xoroshiro128+ algorythm which is one of the quickiest PRNG
 	it passes the BigCrush test :
-	http://en.wikipedia.org/wiki/Xorshift
+	http://xoroshiro.di.unimi.it/xoroshiro128plus.c
  */
-uint64_t generateNumber()
-{
-	uint64_t x = seed[0];
-	uint64_t const y = seed[1];
-	seed[0] = y;
-	x ^= x << 23; // a
-	x ^= x >> 17; // b
-	x ^= y ^ (y >> 26); // c
-	seed[1] = x;
-	return x + y;
+uint64_t generateNumber(void) {
+	const uint64_t seed0 = seed[0];
+	uint64_t seed1 = seed[1];
+	const uint64_t result = seed0 + seed1;
+
+	seed1 ^= seed0;
+	seed[0] = rotationLinearTransformation(seed0, 55) ^ seed1 ^ (seed1 << 14); // a, b
+	seed[1] = rotationLinearTransformation(seed1, 36); // c
+
+	return result;
+}
+
+/*
+	-uint64_t splitmix64(uint64_t* seed)
+	seed : the seed which is modified after each call
+	returned value :  uint64_t randomNumber, a random number generated from the seed
+
+	It is a very fast generator passing BigCrush, http://xoroshiro.di.unimi.it/splitmix64.c
+ */
+uint64_t splitmix64(uint64_t* seed) {
+	uint64_t randomNumber = (*seed += UINT64_C(0x9E3779B97F4A7C15));
+	randomNumber = (randomNumber ^ (randomNumber >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
+	randomNumber = (randomNumber ^ (randomNumber >> 27)) * UINT64_C(0x94D049BB133111EB);
+	return randomNumber ^ (randomNumber >> 31);
 }
 
 
 /*
-	-void hash(char* password)
+	-uint64_t getHash(char* password)
 	password : a string which is the password typed by the user
+	returned value :  uint64_t number representing the hash of the string
 
-	simple function that hashes a string into numbers
-	we don't have to worry about security here because it is just to transform the password into numbers
-	that populate the seeds of the RNG (seed[2])
-	the number which is multiplied (131) must be a prime number and superior to 256 to avoid collision
+	simple function that hashes a string into numbers (djb2)
  */
-void hash(char* password)
+uint64_t getHash(char* password)
 {
-	uint64_t h = 0;
-	for (int j = 0; j < 2; ++j)
+	uint64_t hash = 5381;
+	char c;
+
+	while((c = *password++))
 	{
-		for (int i = 0; i < strlen(password); i++)
-		{
-			h = 257 * h + password[i];
-		}
-		seed[j] = h;
+		hash = ((hash << 5) + hash) + c; // hash * 33 + password[i]
 	}
+
+	return hash;
 }
 
+
+/*
+	-void getSeed(char* password)
+	password: the string corresponding to the password given by the user
+
+	this function is here to populate the seed for the PRNG, 
+	it hashes the password first then get two 64 bit number from it thanks to splitmix64
+	and put the first two outputs into seed[0] and seed[1]
+*/
+void getSeed(char* password){
+	uint64_t hash = getHash(password);
+
+	seed[0] = splitmix64(&hash);
+	seed[1] = splitmix64(&hash);
+}
 
 /*
 	-void scramble(FILE* keyFile)
@@ -277,7 +321,9 @@ void scramble(FILE* keyFile){
 		unsigned char random256;
 		for (int i = 0; i < 10 * 256; ++i)
 		{
-			random256 = generateNumber();
+			random256 = generateNumber() ^ passPhrase[passIndex];
+			passIndex++;
+			passIndex %= 16384;
 			temp = scrambleAsciiTable[i%256];
 			scrambleAsciiTable[i%256] = scrambleAsciiTable[random256];
 			scrambleAsciiTable[random256] = temp;
@@ -290,7 +336,7 @@ void scramble(FILE* keyFile){
 	-void unscramble(void)
 
 	this function is here only for optimization
-	it inverses the key/value in the scramble ascii table making the backward process instaneous
+	it inverses the key/value in the scramble ascii table making the backward process instantaneous
  */
 void unscramble(){
 	for (int i = 0; i < 256; ++i)
@@ -389,6 +435,16 @@ void standardXOR(char* extractedString, char* keyString, char* xoredString, int 
 	return the length of the packet which is the buffer size (BUFFER_SIZE)
 	it can be less at the final packet (if the file isn't a multiple of the buffer size)
 
+	the keyString is get by generating a random number with the seed and then xoring it 
+	with the password itself allowing the key to be really unique and not only one of the 
+	2^64 possibilities offered by the seed (uint64_t)
+	the password is xoring this way : generateNumber1 ^ passPhrase[0]
+									  generateNumber2 ^ passPhrase[1]
+									  ...
+									  then the index overflows and it returns to 0 again
+									  generataNumberX ^ passPhrase[0]
+									  ...
+
 	former version (multiply execution time by 5) :
 	int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 	{
@@ -407,14 +463,16 @@ void standardXOR(char* extractedString, char* keyString, char* xoredString, int 
  */
 int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 {
-	int i = 0;
+	int charactersRead = fread(extractedString, 1, BUFFER_SIZE, mainFile);
 
-	for (int i = 0; i < BUFFER_SIZE; ++i)
+	for (int i = 0; i < charactersRead; ++i)
 	{
-		keyString[i] = generateNumber();
+		keyString[i] = (char)generateNumber() ^ passPhrase[passIndex];
+		passIndex++;
+		passIndex %= 16384;
 	}
 
-	return fread(extractedString, 1, BUFFER_SIZE, mainFile);
+	return charactersRead;
 }
 
 
@@ -661,8 +719,8 @@ int main(int argc, char const *argv[])
 	}
 
 	//outside their scope because we need to free them at the end
-	char* tarName;
-	char* dirName;
+	char* tarName = NULL;
+	char* dirName = NULL;
 	char *copyOfArgv1 = (char*) calloc(1, sizeof(char) * strlen(argv[1]));
 	strcpy(copyOfArgv1, argv[1]);
 	if (isADirectory(copyOfArgv1)){
@@ -761,7 +819,7 @@ int main(int argc, char const *argv[])
 	char procedureResponse[2]; 
 	isCrypting = -1;
 	do{
-		printf("Crypt(C) or Decrypt(D):");
+		printf("Crypt(C) or Decrypt(d):");
 		readString(procedureResponse, 2);
 		printf("\033[F\033[J");
 		if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c') {
@@ -771,12 +829,11 @@ int main(int argc, char const *argv[])
 			isCrypting = 0;
 		}
 	}while(isCrypting == -1);
-
-	char passPhrase[16384];
+	
 	printf("Password:");
 	readString(passPhrase, 16383);
 	printf("\033[F\033[J");
-	hash(passPhrase);
+	getSeed(passPhrase);
 	scramble(keyFile);
 
 	if (isCrypting){
@@ -789,8 +846,12 @@ int main(int argc, char const *argv[])
 	fclose(mainFile);
 
 	//we can free (last use in code/decode)
-	free(tarName);
-	free(dirName);
+	if(tarName != NULL){
+		free(tarName);
+	}
+	if(dirName != NULL){
+		free(dirName);
+	}
 
 	return 0;
 }
