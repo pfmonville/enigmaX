@@ -464,7 +464,7 @@ LCPI8_0:
 	.align	4, 0x90
 _scramble:                              ## @scramble
 	.cfi_startproc
-## BB#0:                                ## %min.iters.checked
+## BB#0:
 	pushq	%rbp
 Ltmp29:
 	.cfi_def_cfa_offset 16
@@ -478,7 +478,7 @@ Ltmp31:
 	pushq	%r13
 	pushq	%r12
 	pushq	%rbx
-	subq	$16392, %rsp            ## imm = 0x4008
+	subq	$16408, %rsp            ## imm = 0x4018
 Ltmp32:
 	.cfi_offset %rbx, -56
 Ltmp33:
@@ -490,50 +490,54 @@ Ltmp35:
 Ltmp36:
 	.cfi_offset %r15, -24
 	movq	%rdi, %r12
-	movq	___stack_chk_guard@GOTPCREL(%rip), %r15
-	movq	(%r15), %r15
-	movq	%r15, -48(%rbp)
-	xorl	%eax, %eax
-	pxor	%xmm0, %xmm0
-	movdqa	LCPI8_0(%rip), %xmm1    ## xmm1 = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-	leaq	_scrambleAsciiTable(%rip), %r13
-	.align	4, 0x90
-LBB8_1:                                 ## %vector.body
-                                        ## =>This Inner Loop Header: Depth=1
-	movd	%eax, %xmm2
-	pshufb	%xmm0, %xmm2
-	paddb	%xmm1, %xmm2
-	movdqa	%xmm2, (%rax,%r13)
-	addq	$16, %rax
-	cmpq	$256, %rax              ## imm = 0x100
-	jne	LBB8_1
-## BB#2:                                ## %middle.block
+	movq	___stack_chk_guard@GOTPCREL(%rip), %rax
+	movq	(%rax), %rax
+	movq	%rax, -48(%rbp)
+	xorl	%r13d, %r13d
 	testq	%r12, %r12
-	je	LBB8_3
-## BB#8:
+	je	LBB8_8
+## BB#1:
+	leaq	_scrambleAsciiTables(%rip), %rax
+	pxor	%xmm1, %xmm1
+	movdqa	LCPI8_0(%rip), %xmm2    ## xmm2 = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
 	leaq	-16432(%rbp), %r14
+	leaq	_scrambleAsciiTables(%rip), %r15
+	.align	4, 0x90
+LBB8_2:                                 ## %vector.ph
+                                        ## =>This Loop Header: Depth=1
+                                        ##     Child Loop BB8_3 Depth 2
+                                        ##     Child Loop BB8_5 Depth 2
+                                        ##       Child Loop BB8_7 Depth 3
+	movq	%rax, -16440(%rbp)      ## 8-byte Spill
+	xorl	%ecx, %ecx
+	.align	4, 0x90
+LBB8_3:                                 ## %vector.body
+                                        ##   Parent Loop BB8_2 Depth=1
+                                        ## =>  This Inner Loop Header: Depth=2
+	movd	%ecx, %xmm0
+	pshufb	%xmm1, %xmm0
+	paddb	%xmm2, %xmm0
+	movdqa	%xmm0, (%rax)
+	addq	$16, %rcx
+	addq	$16, %rax
+	cmpq	$256, %rcx              ## imm = 0x100
+	jne	LBB8_3
+## BB#4:                                ## %middle.block
+                                        ##   in Loop: Header=BB8_2 Depth=1
 	movl	$16384, %esi            ## imm = 0x4000
 	movq	%r14, %rdi
 	callq	___bzero
-	movl	$1, %esi
-	movl	$16384, %edx            ## imm = 0x4000
-	movq	%r14, %rdi
-	movq	%r12, %rcx
-	callq	_fread
-	testl	%eax, %eax
-	jle	LBB8_6
-## BB#9:
-	leaq	-16432(%rbp), %r14
+	jmp	LBB8_5
 	.align	4, 0x90
-LBB8_11:                                ## %.lr.ph.preheader
-                                        ## =>This Loop Header: Depth=1
-                                        ##     Child Loop BB8_12 Depth 2
-	movl	%eax, %edi
+LBB8_6:                                 ## %.lr.ph.preheader
+                                        ##   in Loop: Header=BB8_5 Depth=2
+	movl	%eax, %r8d
 	xorl	%ecx, %ecx
 	.align	4, 0x90
-LBB8_12:                                ## %.lr.ph
-                                        ##   Parent Loop BB8_11 Depth=1
-                                        ## =>  This Inner Loop Header: Depth=2
+LBB8_7:                                 ## %.lr.ph
+                                        ##   Parent Loop BB8_2 Depth=1
+                                        ##     Parent Loop BB8_5 Depth=2
+                                        ## =>    This Inner Loop Header: Depth=3
 	movl	%ecx, %edx
 	sarl	$31, %edx
 	shrl	$24, %edx
@@ -542,70 +546,125 @@ LBB8_12:                                ## %.lr.ph
 	movl	%ecx, %esi
 	subl	%edx, %esi
 	movslq	%esi, %rdx
-	movb	(%rdx,%r13), %bl
-	movzbl	-16432(%rbp,%rcx), %esi
-	movb	(%rsi,%r13), %al
-	movb	%al, (%rdx,%r13)
-	movb	%bl, (%rsi,%r13)
+	movq	%r13, %rsi
+	shlq	$8, %rsi
+	addq	%r15, %rsi
+	movb	(%rdx,%rsi), %bl
+	movzbl	-16432(%rbp,%rcx), %edi
+	movb	(%rdi,%rsi), %al
+	movb	%al, (%rdx,%rsi)
+	movb	%bl, (%rdi,%rsi)
 	incq	%rcx
-	cmpl	%ecx, %edi
-	jne	LBB8_12
-## BB#10:                               ## %.loopexit4
-                                        ##   in Loop: Header=BB8_11 Depth=1
+	cmpl	%ecx, %r8d
+	jne	LBB8_7
+LBB8_5:                                 ## %.loopexit
+                                        ##   Parent Loop BB8_2 Depth=1
+                                        ## =>  This Loop Header: Depth=2
+                                        ##       Child Loop BB8_7 Depth 3
 	movl	$1, %esi
 	movl	$16384, %edx            ## imm = 0x4000
 	movq	%r14, %rdi
 	movq	%r12, %rcx
 	callq	_fread
 	testl	%eax, %eax
-	jg	LBB8_11
-	jmp	LBB8_6
-LBB8_3:                                 ## %.preheader
+	jg	LBB8_6
+## BB#16:                               ## %._crit_edge
+                                        ##   in Loop: Header=BB8_2 Depth=1
+	movq	%r12, %rdi
+	callq	_rewind
+	incq	%r13
+	movq	-16440(%rbp), %rax      ## 8-byte Reload
+	addq	$256, %rax              ## imm = 0x100
+	cmpq	$16, %r13
+	pxor	%xmm1, %xmm1
+	movdqa	LCPI8_0(%rip), %xmm2    ## xmm2 = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+	jne	LBB8_2
+	jmp	LBB8_14
+LBB8_8:                                 ## %.preheader5.us.preheader
 	movq	_seed.0(%rip), %rdx
-	movq	_seed.1(%rip), %rax
-	xorl	%r10d, %r10d
-	movq	_passIndex(%rip), %rcx
-	movq	_passPhrase@GOTPCREL(%rip), %r8
+	movq	_seed.1(%rip), %r15
+	leaq	_scrambleAsciiTables(%rip), %r9
+	movq	_passIndex(%rip), %r14
+	xorl	%r11d, %r11d
+	pxor	%xmm0, %xmm0
+	movdqa	LCPI8_0(%rip), %xmm1    ## xmm1 = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
+	movq	_passPhrase@GOTPCREL(%rip), %r10
+	movq	%r9, %rax
 	.align	4, 0x90
-LBB8_4:                                 ## =>This Inner Loop Header: Depth=1
-	leal	(%rax,%rdx), %r9d
-	xorq	%rdx, %rax
-	movq	%rdx, %rbx
-	rolq	$55, %rbx
-	movq	%rax, %rdx
+LBB8_9:                                 ## %vector.ph45
+                                        ## =>This Loop Header: Depth=1
+                                        ##     Child Loop BB8_10 Depth 2
+                                        ##     Child Loop BB8_11 Depth 2
+	movq	%rax, -16440(%rbp)      ## 8-byte Spill
+	movq	%rax, %rbx
+	xorl	%edi, %edi
+	.align	4, 0x90
+LBB8_10:                                ## %vector.body41
+                                        ##   Parent Loop BB8_9 Depth=1
+                                        ## =>  This Inner Loop Header: Depth=2
+	movd	%edi, %xmm2
+	pshufb	%xmm0, %xmm2
+	paddb	%xmm1, %xmm2
+	movdqa	%xmm2, (%rbx)
+	addq	$16, %rdi
+	addq	$16, %rbx
+	xorl	%eax, %eax
+	cmpq	$256, %rdi              ## imm = 0x100
+	jne	LBB8_10
+	.align	4, 0x90
+LBB8_11:                                ## %.preheader3.us
+                                        ##   Parent Loop BB8_9 Depth=1
+                                        ## =>  This Inner Loop Header: Depth=2
+	leal	(%r15,%rdx), %r12d
+	xorq	%rdx, %r15
+	movq	%rdx, %rdi
+	rolq	$55, %rdi
+	movq	%r15, %rdx
 	shlq	$14, %rdx
-	xorq	%rax, %rdx
-	xorq	%rbx, %rdx
-	rolq	$36, %rax
-	movzbl	(%r8,%rcx), %r11d
-	incl	%ecx
-	andl	$16383, %ecx            ## imm = 0x3FFF
-	movl	%r10d, %esi
+	xorq	%r15, %rdx
+	xorq	%rdi, %rdx
+	rolq	$36, %r15
+	movzbl	(%r10,%r14), %r13d
+	incl	%r14d
+	andl	$16383, %r14d           ## imm = 0x3FFF
+	movl	%eax, %esi
 	sarl	$31, %esi
 	shrl	$24, %esi
-	addl	%r10d, %esi
+	addl	%eax, %esi
 	andl	$-256, %esi
-	movl	%r10d, %edi
-	subl	%esi, %edi
-	movslq	%edi, %rsi
-	movb	(%rsi,%r13), %r14b
-	movzbl	%r9b, %edi
-	xorq	%r11, %rdi
-	movb	(%rdi,%r13), %bl
-	movb	%bl, (%rsi,%r13)
-	movb	%r14b, (%rdi,%r13)
-	incl	%r10d
-	cmpl	$2560, %r10d            ## imm = 0xA00
-	jne	LBB8_4
-## BB#5:                                ## %.loopexit
+	movl	%eax, %ecx
+	subl	%esi, %ecx
+	movslq	%ecx, %rcx
+	movq	%r11, %rsi
+	shlq	$8, %rsi
+	addq	%r9, %rsi
+	movb	(%rcx,%rsi), %r8b
+	movzbl	%r12b, %edi
+	xorq	%r13, %rdi
+	movb	(%rdi,%rsi), %bl
+	movb	%bl, (%rcx,%rsi)
+	movb	%r8b, (%rdi,%rsi)
+	incl	%eax
+	cmpl	$2560, %eax             ## imm = 0xA00
+	jne	LBB8_11
+## BB#12:                               ## %.loopexit4.us
+                                        ##   in Loop: Header=BB8_9 Depth=1
+	incq	%r11
+	movq	-16440(%rbp), %rax      ## 8-byte Reload
+	addq	$256, %rax              ## imm = 0x100
+	cmpq	$16, %r11
+	jne	LBB8_9
+## BB#13:                               ## %.us-lcssa.us.loopexit
 	movq	%rdx, _seed.0(%rip)
-	movq	%rax, _seed.1(%rip)
-	movq	%rcx, _passIndex(%rip)
-LBB8_6:
-	cmpq	-48(%rbp), %r15
-	jne	LBB8_7
-## BB#13:
-	addq	$16392, %rsp            ## imm = 0x4008
+	movq	%r15, _seed.1(%rip)
+	movq	%r14, _passIndex(%rip)
+LBB8_14:                                ## %.us-lcssa.us
+	movq	___stack_chk_guard@GOTPCREL(%rip), %rax
+	movq	(%rax), %rax
+	cmpq	-48(%rbp), %rax
+	jne	LBB8_17
+## BB#15:                               ## %.us-lcssa.us
+	addq	$16408, %rsp            ## imm = 0x4018
 	popq	%rbx
 	popq	%r12
 	popq	%r13
@@ -613,7 +672,7 @@ LBB8_6:
 	popq	%r15
 	popq	%rbp
 	retq
-LBB8_7:
+LBB8_17:                                ## %.us-lcssa.us
 	callq	___stack_chk_fail
 	.cfi_endproc
 
@@ -630,17 +689,33 @@ Ltmp38:
 	movq	%rsp, %rbp
 Ltmp39:
 	.cfi_def_cfa_register %rbp
-	xorl	%eax, %eax
-	leaq	_scrambleAsciiTable(%rip), %rcx
-	leaq	_unscrambleAsciiTable(%rip), %rdx
+	leaq	_scrambleAsciiTables(%rip), %r8
+	xorl	%edx, %edx
+	leaq	_unscrambleAsciiTables(%rip), %r9
 	.align	4, 0x90
-LBB9_1:                                 ## =>This Inner Loop Header: Depth=1
-	movzbl	(%rax,%rcx), %esi
-	movb	%al, (%rsi,%rdx)
-	incq	%rax
-	cmpq	$256, %rax              ## imm = 0x100
+LBB9_1:                                 ## %.preheader
+                                        ## =>This Loop Header: Depth=1
+                                        ##     Child Loop BB9_2 Depth 2
+	movq	%r8, %rsi
+	xorl	%edi, %edi
+	.align	4, 0x90
+LBB9_2:                                 ##   Parent Loop BB9_1 Depth=1
+                                        ## =>  This Inner Loop Header: Depth=2
+	movzbl	(%rsi), %eax
+	movq	%rdx, %rcx
+	shlq	$8, %rcx
+	addq	%r9, %rcx
+	movb	%dil, (%rax,%rcx)
+	incq	%rdi
+	incq	%rsi
+	cmpq	$256, %rdi              ## imm = 0x100
+	jne	LBB9_2
+## BB#3:                                ##   in Loop: Header=BB9_1 Depth=1
+	incq	%rdx
+	addq	$256, %r8               ## imm = 0x100
+	cmpq	$16, %rdx
 	jne	LBB9_1
-## BB#2:
+## BB#4:
 	popq	%rbp
 	retq
 	.cfi_endproc
@@ -661,13 +736,18 @@ Ltmp42:
 	testl	%ecx, %ecx
 	jle	LBB10_3
 ## BB#1:
-	leaq	_scrambleAsciiTable(%rip), %r8
+	leaq	_scrambleAsciiTables(%rip), %r8
 	.align	4, 0x90
 LBB10_2:                                ## %.lr.ph
                                         ## =>This Inner Loop Header: Depth=1
 	movzbl	(%rdi), %r9d
-	movb	(%rsi), %al
-	xorb	(%r9,%r8), %al
+	movzbl	(%rsi), %r10d
+	movl	%r10d, %eax
+	andl	$15, %eax
+	shlq	$8, %rax
+	addq	%r8, %rax
+	movb	(%r9,%rax), %al
+	xorb	%r10b, %al
 	movb	%al, (%rdx)
 	incq	%rdi
 	incq	%rsi
@@ -695,14 +775,18 @@ Ltmp45:
 	testl	%ecx, %ecx
 	jle	LBB11_3
 ## BB#1:
-	leaq	_unscrambleAsciiTable(%rip), %r8
+	leaq	_unscrambleAsciiTables(%rip), %r8
 	.align	4, 0x90
 LBB11_2:                                ## %.lr.ph
                                         ## =>This Inner Loop Header: Depth=1
-	movb	(%rsi), %al
-	xorb	(%rdi), %al
+	movzbl	(%rsi), %r9d
+	movb	(%rdi), %al
+	xorb	%r9b, %al
 	movzbl	%al, %eax
-	movb	(%rax,%r8), %al
+	andl	$15, %r9d
+	shlq	$8, %r9
+	addq	%r8, %r9
+	movb	(%rax,%r9), %al
 	movb	%al, (%rdx)
 	incq	%rdi
 	incq	%rsi
@@ -1200,7 +1284,7 @@ LBB14_2:                                ## %loadBar.exit24.preheader
 	jne	LBB14_13
 ## BB#3:
 	movq	_passPhrase@GOTPCREL(%rip), %r15
-	leaq	_scrambleAsciiTable(%rip), %r13
+	leaq	_scrambleAsciiTables(%rip), %r13
 	.align	4, 0x90
 LBB14_4:                                ## %.lr.ph48
                                         ## =>This Loop Header: Depth=1
@@ -1255,8 +1339,13 @@ LBB14_8:                                ## %.lr.ph.i.8
                                         ##   Parent Loop BB14_4 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movzbl	(%rdx), %r8d
-	movb	(%rsi), %bl
-	xorb	(%r8,%r13), %bl
+	movzbl	(%rsi), %r9d
+	movl	%r9d, %ebx
+	andl	$15, %ebx
+	shlq	$8, %rbx
+	addq	%r13, %rbx
+	movb	(%r8,%rbx), %bl
+	xorb	%r9b, %bl
 	movb	%bl, (%rdi)
 	incq	%rdi
 	incq	%rsi
@@ -1471,12 +1560,11 @@ Ltmp73:
 	addq	$15, %rax
 	movabsq	$8589934576, %rcx       ## imm = 0x1FFFFFFF0
 	andq	%rax, %rcx
-	movq	%rsp, %rbx
-	subq	%rcx, %rbx
-	movq	%rbx, %rsp
+	movq	%rsp, %r12
+	subq	%rcx, %r12
+	movq	%r12, %rsp
 	leaq	-16432(%rbp), %rdi
 	movl	$16384, %esi            ## imm = 0x4000
-	movq	%rdi, %r12
 	callq	___bzero
 	leaq	-32816(%rbp), %rdi
 	movl	$16384, %esi            ## imm = 0x4000
@@ -1484,36 +1572,52 @@ Ltmp73:
 	leaq	-49200(%rbp), %rdi
 	movl	$16384, %esi            ## imm = 0x4000
 	callq	___bzero
-	xorl	%eax, %eax
-	leaq	_scrambleAsciiTable(%rip), %rcx
-	leaq	_unscrambleAsciiTable(%rip), %r15
+	leaq	_scrambleAsciiTables(%rip), %rax
+	xorl	%ebx, %ebx
+	leaq	_unscrambleAsciiTables(%rip), %r15
 	.align	4, 0x90
-LBB15_1:                                ## =>This Inner Loop Header: Depth=1
-	movzbl	(%rax,%rcx), %edx
-	movb	%al, (%rdx,%r15)
-	incq	%rax
-	cmpq	$256, %rax              ## imm = 0x100
+LBB15_1:                                ## %.preheader.i
+                                        ## =>This Loop Header: Depth=1
+                                        ##     Child Loop BB15_2 Depth 2
+	movq	%rax, %rdx
+	xorl	%esi, %esi
+	.align	4, 0x90
+LBB15_2:                                ##   Parent Loop BB15_1 Depth=1
+                                        ## =>  This Inner Loop Header: Depth=2
+	movzbl	(%rdx), %edi
+	movq	%rbx, %rcx
+	shlq	$8, %rcx
+	addq	%r15, %rcx
+	movb	%sil, (%rdi,%rcx)
+	incq	%rsi
+	incq	%rdx
+	cmpq	$256, %rsi              ## imm = 0x100
+	jne	LBB15_2
+## BB#3:                                ##   in Loop: Header=BB15_1 Depth=1
+	incq	%rbx
+	addq	$256, %rax              ## imm = 0x100
+	cmpq	$16, %rbx
 	jne	LBB15_1
-## BB#2:                                ## %unscramble.exit
+## BB#4:                                ## %unscramble.exit
 	leaq	L_.str.4(%rip), %rcx
 	movl	$0, %esi
 	movq	$-1, %rdx
 	xorl	%eax, %eax
-	movq	%rbx, %rdi
+	movq	%r12, %rdi
 	movq	%r14, %r8
 	callq	___sprintf_chk
 	leaq	_pathToMainFile(%rip), %r14
 	movl	$1000, %edx             ## imm = 0x3E8
 	movq	%r14, %rdi
-	movq	%rbx, %rsi
+	movq	%r12, %rsi
 	callq	___strcat_chk
 	leaq	L_.str.1(%rip), %rsi
 	movq	%r14, %rdi
 	callq	_fopen
 	movq	%rax, -49208(%rbp)      ## 8-byte Spill
 	testq	%rax, %rax
-	je	LBB15_46
-## BB#3:
+	je	LBB15_48
+## BB#5:
 	leaq	L_str.31(%rip), %rdi
 	callq	_puts
 	movb	_scrambling(%rip), %bl
@@ -1521,42 +1625,42 @@ LBB15_1:                                ## =>This Inner Loop Header: Depth=1
 	movq	%r13, %rdi
 	callq	_feof
 	testb	%bl, %bl
-	movq	%r12, %r14
-	je	LBB15_4
-## BB#17:                               ## %loadBar.exit.preheader
+	leaq	-16432(%rbp), %r14
+	je	LBB15_6
+## BB#19:                               ## %loadBar.exit.preheader
 	xorl	%r14d, %r14d
 	testl	%eax, %eax
 	movq	%r13, %rbx
 	movq	%rbx, -49216(%rbp)      ## 8-byte Spill
-	jne	LBB15_15
-## BB#18:
-	leaq	-16432(%rbp), %r13
-	leaq	-32816(%rbp), %r12
+	jne	LBB15_17
+## BB#20:
+	leaq	-16432(%rbp), %r12
+	leaq	-32816(%rbp), %r13
 	movq	_passPhrase@GOTPCREL(%rip), %r15
 	.align	4, 0x90
-LBB15_19:                               ## %.lr.ph
+LBB15_21:                               ## %.lr.ph
                                         ## =>This Loop Header: Depth=1
-                                        ##     Child Loop BB15_21 Depth 2
-                                        ##     Child Loop BB15_25 Depth 2
-                                        ##     Child Loop BB15_28 Depth 2
-                                        ##     Child Loop BB15_44 Depth 2
-                                        ##     Child Loop BB15_41 Depth 2
+                                        ##     Child Loop BB15_23 Depth 2
+                                        ##     Child Loop BB15_27 Depth 2
+                                        ##     Child Loop BB15_30 Depth 2
+                                        ##     Child Loop BB15_46 Depth 2
+                                        ##     Child Loop BB15_43 Depth 2
 	movl	$1, %esi
 	movl	$16384, %edx            ## imm = 0x4000
-	movq	%r13, %rdi
+	movq	%r12, %rdi
 	movq	%rbx, %rcx
 	callq	_fread
 	testl	%eax, %eax
-	jle	LBB15_29
-## BB#20:                               ## %.lr.ph.i.30
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jle	LBB15_31
+## BB#22:                               ## %.lr.ph.i.31
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movq	_seed.0(%rip), %rdx
 	movq	_seed.1(%rip), %rcx
 	movq	_passIndex(%rip), %rsi
 	movl	%eax, %r8d
-	movq	%r12, %r9
+	movq	%r13, %r9
 	.align	4, 0x90
-LBB15_21:                               ##   Parent Loop BB15_19 Depth=1
+LBB15_23:                               ##   Parent Loop BB15_21 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	leal	(%rdx,%rcx), %edi
 	xorq	%rdx, %rcx
@@ -1573,9 +1677,9 @@ LBB15_21:                               ##   Parent Loop BB15_19 Depth=1
 	andl	$16383, %esi            ## imm = 0x3FFF
 	incq	%r9
 	decl	%r8d
-	jne	LBB15_21
-## BB#22:                               ## %.lr.ph.i.41.preheader
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jne	LBB15_23
+## BB#24:                               ## %.lr.ph.i.42.preheader
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movq	%rsi, _passIndex(%rip)
 	movq	%rdx, _seed.0(%rip)
 	movq	%rcx, _seed.1(%rip)
@@ -1583,16 +1687,16 @@ LBB15_21:                               ##   Parent Loop BB15_19 Depth=1
 	incq	%rcx
 	cmpq	$16, %rcx
 	movl	$0, %ebx
-	jb	LBB15_27
-## BB#23:                               ## %min.iters.checked
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jb	LBB15_29
+## BB#25:                               ## %min.iters.checked
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movl	%eax, %r8d
 	andl	$15, %r8d
 	subq	%r8, %rcx
 	movl	$0, %ebx
-	je	LBB15_27
-## BB#24:                               ## %vector.body.preheader
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	je	LBB15_29
+## BB#26:                               ## %vector.body.preheader
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movl	$4294967295, %edx       ## imm = 0xFFFFFFFF
 	leal	(%rax,%rdx), %esi
 	incq	%rsi
@@ -1600,11 +1704,11 @@ LBB15_21:                               ##   Parent Loop BB15_19 Depth=1
 	andl	$15, %edx
 	subq	%rdx, %rsi
 	leaq	-49200(%rbp), %rdi
-	movq	%r12, %rbx
-	movq	%r13, %rdx
+	movq	%r13, %rbx
+	movq	%r12, %rdx
 	.align	4, 0x90
-LBB15_25:                               ## %vector.body
-                                        ##   Parent Loop BB15_19 Depth=1
+LBB15_27:                               ## %vector.body
+                                        ##   Parent Loop BB15_21 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movapd	(%rbx), %xmm0
 	xorpd	(%rdx), %xmm0
@@ -1613,23 +1717,23 @@ LBB15_25:                               ## %vector.body
 	addq	$16, %rbx
 	addq	$16, %rdi
 	addq	$-16, %rsi
-	jne	LBB15_25
-## BB#26:                               ## %middle.block
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jne	LBB15_27
+## BB#28:                               ## %middle.block
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	testq	%r8, %r8
 	movq	%rcx, %rbx
-	je	LBB15_29
+	je	LBB15_31
 	.align	4, 0x90
-LBB15_27:                               ## %.lr.ph.i.41.preheader81
-                                        ##   in Loop: Header=BB15_19 Depth=1
+LBB15_29:                               ## %.lr.ph.i.42.preheader82
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	leaq	-49200(%rbp,%rbx), %rcx
 	leaq	-32816(%rbp,%rbx), %rdx
 	leaq	-16432(%rbp,%rbx), %rsi
 	movl	%eax, %edi
 	subl	%ebx, %edi
 	.align	4, 0x90
-LBB15_28:                               ## %.lr.ph.i.41
-                                        ##   Parent Loop BB15_19 Depth=1
+LBB15_30:                               ## %.lr.ph.i.42
+                                        ##   Parent Loop BB15_21 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movb	(%rdx), %bl
 	xorb	(%rsi), %bl
@@ -1638,9 +1742,9 @@ LBB15_28:                               ## %.lr.ph.i.41
 	incq	%rdx
 	incq	%rsi
 	decl	%edi
-	jne	LBB15_28
-LBB15_29:                               ## %standardXOR.exit
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jne	LBB15_30
+LBB15_31:                               ## %standardXOR.exit
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movslq	%eax, %rdx
 	movl	$1, %esi
 	leaq	-49200(%rbp), %rdi
@@ -1650,13 +1754,13 @@ LBB15_29:                               ## %standardXOR.exit
 	movl	_numberOfBuffer(%rip), %ebx
 	movb	_loadBar.firstCall(%rip), %al
 	andb	$1, %al
-	jne	LBB15_31
-## BB#30:                               ##   in Loop: Header=BB15_19 Depth=1
+	jne	LBB15_33
+## BB#32:                               ##   in Loop: Header=BB15_21 Depth=1
 	xorl	%edi, %edi
 	callq	_time
 	movq	%rax, _loadBar.startingTime(%rip)
 	movb	$1, _loadBar.firstCall(%rip)
-LBB15_31:                               ##   in Loop: Header=BB15_19 Depth=1
+LBB15_33:                               ##   in Loop: Header=BB15_21 Depth=1
 	movslq	%ebx, %rax
 	imulq	$1374389535, %rax, %rax ## imm = 0x51EB851F
 	movq	%rax, %rcx
@@ -1667,16 +1771,16 @@ LBB15_31:                               ##   in Loop: Header=BB15_19 Depth=1
 	cltd
 	idivl	%ecx
 	testl	%edx, %edx
-	jne	LBB15_32
-## BB#43:                               ##   in Loop: Header=BB15_19 Depth=1
-	movq	%r13, %r12
+	jne	LBB15_34
+## BB#45:                               ##   in Loop: Header=BB15_21 Depth=1
+	movq	%r12, %r13
 	cvtsi2ssl	%r14d, %xmm1
 	cvtsi2ssl	%ebx, %xmm0
 	divss	%xmm0, %xmm1
 	movss	%xmm1, -49228(%rbp)     ## 4-byte Spill
 	movaps	%xmm1, %xmm0
 	mulss	LCPI15_0(%rip), %xmm0
-	cvttss2si	%xmm0, %r13d
+	cvttss2si	%xmm0, %r12d
 	xorl	%edi, %edi
 	callq	_time
 	movq	_loadBar.startingTime(%rip), %rsi
@@ -1696,35 +1800,35 @@ LBB15_31:                               ##   in Loop: Header=BB15_19 Depth=1
 	xorl	%eax, %eax
 	leaq	L_.str.24(%rip), %rdi
 	callq	_printf
-	testl	%r13d, %r13d
-	movl	%r13d, %ebx
-	jle	LBB15_40
+	testl	%r12d, %r12d
+	movl	%r12d, %ebx
+	jle	LBB15_42
 	.align	4, 0x90
-LBB15_44:                               ## %.lr.ph5.i
-                                        ##   Parent Loop BB15_19 Depth=1
+LBB15_46:                               ## %.lr.ph5.i
+                                        ##   Parent Loop BB15_21 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movl	$61, %edi
 	callq	_putchar
 	decl	%ebx
-	jne	LBB15_44
-## BB#39:                               ## %.preheader.i
-                                        ##   in Loop: Header=BB15_19 Depth=1
-	cmpl	$49, %r13d
-	jg	LBB15_42
-LBB15_40:                               ## %.lr.ph.i.preheader
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jne	LBB15_46
+## BB#41:                               ## %.preheader.i.3
+                                        ##   in Loop: Header=BB15_21 Depth=1
+	cmpl	$49, %r12d
+	jg	LBB15_44
+LBB15_42:                               ## %.lr.ph.i.preheader
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movl	$50, %ebx
-	subl	%r13d, %ebx
+	subl	%r12d, %ebx
 	.align	4, 0x90
-LBB15_41:                               ## %.lr.ph.i
-                                        ##   Parent Loop BB15_19 Depth=1
+LBB15_43:                               ## %.lr.ph.i
+                                        ##   Parent Loop BB15_21 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movl	$32, %edi
 	callq	_putchar
 	decl	%ebx
-	jne	LBB15_41
-LBB15_42:                               ## %._crit_edge.i
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	jne	LBB15_43
+LBB15_44:                               ## %._crit_edge.i
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movb	$1, %al
 	leaq	L_.str.27(%rip), %rdi
 	movsd	-49224(%rbp), %xmm0     ## 8-byte Reload
@@ -1733,47 +1837,47 @@ LBB15_42:                               ## %._crit_edge.i
 	movq	___stdoutp@GOTPCREL(%rip), %rax
 	movq	(%rax), %rdi
 	callq	_fflush
-	movq	%r12, %r13
-	leaq	-32816(%rbp), %r12
-LBB15_32:                               ## %loadBar.exit.backedge
-                                        ##   in Loop: Header=BB15_19 Depth=1
+	movq	%r13, %r12
+	leaq	-32816(%rbp), %r13
+LBB15_34:                               ## %loadBar.exit.backedge
+                                        ##   in Loop: Header=BB15_21 Depth=1
 	movq	-49216(%rbp), %rbx      ## 8-byte Reload
 	movq	%rbx, %rdi
 	callq	_feof
 	testl	%eax, %eax
-	je	LBB15_19
-	jmp	LBB15_15
-LBB15_4:                                ## %loadBar.exit26.preheader
+	je	LBB15_21
+	jmp	LBB15_17
+LBB15_6:                                ## %loadBar.exit27.preheader
 	xorl	%r12d, %r12d
 	testl	%eax, %eax
 	movq	%r13, %rbx
 	movq	%rbx, -49216(%rbp)      ## 8-byte Spill
-	jne	LBB15_15
-## BB#5:
+	jne	LBB15_17
+## BB#7:
 	movq	_passPhrase@GOTPCREL(%rip), %r13
 	.align	4, 0x90
-LBB15_6:                                ## %.lr.ph50
+LBB15_8:                                ## %.lr.ph51
                                         ## =>This Loop Header: Depth=1
-                                        ##     Child Loop BB15_8 Depth 2
                                         ##     Child Loop BB15_10 Depth 2
-                                        ##     Child Loop BB15_38 Depth 2
-                                        ##     Child Loop BB15_35 Depth 2
+                                        ##     Child Loop BB15_12 Depth 2
+                                        ##     Child Loop BB15_40 Depth 2
+                                        ##     Child Loop BB15_37 Depth 2
 	movl	$1, %esi
 	movl	$16384, %edx            ## imm = 0x4000
 	movq	%r14, %rdi
 	movq	%rbx, %rcx
 	callq	_fread
 	testl	%eax, %eax
-	jle	LBB15_11
-## BB#7:                                ## %.lr.ph.i.4
-                                        ##   in Loop: Header=BB15_6 Depth=1
+	jle	LBB15_13
+## BB#9:                                ## %.lr.ph.i.5
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	movq	_seed.0(%rip), %rdx
 	movq	_seed.1(%rip), %rcx
 	movq	_passIndex(%rip), %rsi
 	movl	%eax, %r8d
 	leaq	-32816(%rbp), %r9
 	.align	4, 0x90
-LBB15_8:                                ##   Parent Loop BB15_6 Depth=1
+LBB15_10:                               ##   Parent Loop BB15_8 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	leal	(%rdx,%rcx), %edi
 	xorq	%rdx, %rcx
@@ -1790,32 +1894,36 @@ LBB15_8:                                ##   Parent Loop BB15_6 Depth=1
 	andl	$16383, %esi            ## imm = 0x3FFF
 	incq	%r9
 	decl	%r8d
-	jne	LBB15_8
-## BB#9:                                ## %.lr.ph.i.13.preheader
-                                        ##   in Loop: Header=BB15_6 Depth=1
+	jne	LBB15_10
+## BB#11:                               ## %.lr.ph.i.14.preheader
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	movq	%rsi, _passIndex(%rip)
 	movq	%rdx, _seed.0(%rip)
 	movq	%rcx, _seed.1(%rip)
-	movl	%eax, %ecx
+	movl	%eax, %r8d
 	movq	%r14, %rdx
 	leaq	-32816(%rbp), %rsi
 	leaq	-49200(%rbp), %rdi
 	.align	4, 0x90
-LBB15_10:                               ## %.lr.ph.i.13
-                                        ##   Parent Loop BB15_6 Depth=1
+LBB15_12:                               ## %.lr.ph.i.14
+                                        ##   Parent Loop BB15_8 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
-	movb	(%rsi), %bl
-	xorb	(%rdx), %bl
-	movzbl	%bl, %ebx
-	movb	(%rbx,%r15), %bl
-	movb	%bl, (%rdi)
+	movzbl	(%rsi), %ebx
+	movb	(%rdx), %cl
+	xorb	%bl, %cl
+	movzbl	%cl, %ecx
+	andl	$15, %ebx
+	shlq	$8, %rbx
+	addq	%r15, %rbx
+	movb	(%rcx,%rbx), %cl
+	movb	%cl, (%rdi)
 	incq	%rdi
 	incq	%rsi
 	incq	%rdx
-	decl	%ecx
-	jne	LBB15_10
-LBB15_11:                               ## %decodingXOR.exit
-                                        ##   in Loop: Header=BB15_6 Depth=1
+	decl	%r8d
+	jne	LBB15_12
+LBB15_13:                               ## %decodingXOR.exit
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	movslq	%eax, %rdx
 	movl	$1, %esi
 	leaq	-49200(%rbp), %rdi
@@ -1825,13 +1933,13 @@ LBB15_11:                               ## %decodingXOR.exit
 	movl	_numberOfBuffer(%rip), %ebx
 	movb	_loadBar.firstCall(%rip), %al
 	andb	$1, %al
-	jne	LBB15_13
-## BB#12:                               ##   in Loop: Header=BB15_6 Depth=1
+	jne	LBB15_15
+## BB#14:                               ##   in Loop: Header=BB15_8 Depth=1
 	xorl	%edi, %edi
 	callq	_time
 	movq	%rax, _loadBar.startingTime(%rip)
 	movb	$1, _loadBar.firstCall(%rip)
-LBB15_13:                               ##   in Loop: Header=BB15_6 Depth=1
+LBB15_15:                               ##   in Loop: Header=BB15_8 Depth=1
 	movslq	%ebx, %rax
 	imulq	$1374389535, %rax, %rax ## imm = 0x51EB851F
 	movq	%rax, %rcx
@@ -1842,8 +1950,8 @@ LBB15_13:                               ##   in Loop: Header=BB15_6 Depth=1
 	cltd
 	idivl	%ecx
 	testl	%edx, %edx
-	jne	LBB15_14
-## BB#37:                               ##   in Loop: Header=BB15_6 Depth=1
+	jne	LBB15_16
+## BB#39:                               ##   in Loop: Header=BB15_8 Depth=1
 	cvtsi2ssl	%r12d, %xmm1
 	cvtsi2ssl	%ebx, %xmm0
 	divss	%xmm0, %xmm1
@@ -1872,33 +1980,33 @@ LBB15_13:                               ##   in Loop: Header=BB15_6 Depth=1
 	callq	_printf
 	testl	%r14d, %r14d
 	movl	%r14d, %ebx
-	jle	LBB15_34
+	jle	LBB15_36
 	.align	4, 0x90
-LBB15_38:                               ## %.lr.ph5.i.20
-                                        ##   Parent Loop BB15_6 Depth=1
+LBB15_40:                               ## %.lr.ph5.i.21
+                                        ##   Parent Loop BB15_8 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movl	$61, %edi
 	callq	_putchar
 	decl	%ebx
-	jne	LBB15_38
-## BB#33:                               ## %.preheader.i.16
-                                        ##   in Loop: Header=BB15_6 Depth=1
+	jne	LBB15_40
+## BB#35:                               ## %.preheader.i.17
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	cmpl	$49, %r14d
-	jg	LBB15_36
-LBB15_34:                               ## %.lr.ph.i.25.preheader
-                                        ##   in Loop: Header=BB15_6 Depth=1
+	jg	LBB15_38
+LBB15_36:                               ## %.lr.ph.i.26.preheader
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	movl	$50, %ebx
 	subl	%r14d, %ebx
 	.align	4, 0x90
-LBB15_35:                               ## %.lr.ph.i.25
-                                        ##   Parent Loop BB15_6 Depth=1
+LBB15_37:                               ## %.lr.ph.i.26
+                                        ##   Parent Loop BB15_8 Depth=1
                                         ## =>  This Inner Loop Header: Depth=2
 	movl	$32, %edi
 	callq	_putchar
 	decl	%ebx
-	jne	LBB15_35
-LBB15_36:                               ## %._crit_edge.i.21
-                                        ##   in Loop: Header=BB15_6 Depth=1
+	jne	LBB15_37
+LBB15_38:                               ## %._crit_edge.i.22
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	movb	$1, %al
 	leaq	L_.str.27(%rip), %rdi
 	movsd	-49224(%rbp), %xmm0     ## 8-byte Reload
@@ -1908,21 +2016,21 @@ LBB15_36:                               ## %._crit_edge.i.21
 	movq	(%rax), %rdi
 	callq	_fflush
 	leaq	-16432(%rbp), %r14
-LBB15_14:                               ## %loadBar.exit26.backedge
-                                        ##   in Loop: Header=BB15_6 Depth=1
+LBB15_16:                               ## %loadBar.exit27.backedge
+                                        ##   in Loop: Header=BB15_8 Depth=1
 	movq	-49216(%rbp), %rbx      ## 8-byte Reload
 	movq	%rbx, %rdi
 	callq	_feof
 	testl	%eax, %eax
-	je	LBB15_6
-LBB15_15:                               ## %.loopexit
+	je	LBB15_8
+LBB15_17:                               ## %.loopexit
 	movq	-49208(%rbp), %rdi      ## 8-byte Reload
 	callq	_fclose
 	movq	___stack_chk_guard@GOTPCREL(%rip), %rax
 	movq	(%rax), %rax
 	cmpq	-48(%rbp), %rax
-	jne	LBB15_16
-## BB#45:                               ## %.loopexit
+	jne	LBB15_18
+## BB#47:                               ## %.loopexit
 	leaq	-40(%rbp), %rsp
 	popq	%rbx
 	popq	%r12
@@ -1931,14 +2039,14 @@ LBB15_15:                               ## %.loopexit
 	popq	%r15
 	popq	%rbp
 	retq
-LBB15_46:
-	movq	%rbx, %rdi
+LBB15_48:
+	movq	%r12, %rdi
 	callq	_perror
 	leaq	L_str.43(%rip), %rdi
 	callq	_puts
 	movl	$1, %edi
 	callq	_exit
-LBB15_16:                               ## %.loopexit
+LBB15_18:                               ## %.loopexit
 	callq	___stack_chk_fail
 	.cfi_endproc
 
@@ -2674,9 +2782,9 @@ LBB18_2:
 .zerofill __DATA,__common,_passIndex,8,3
 .zerofill __DATA,__bss,_seed.0,8,4      ## @seed.0
 .zerofill __DATA,__bss,_seed.1,8,3      ## @seed.1
-.zerofill __DATA,__bss,_scrambleAsciiTable,256,4 ## @scrambleAsciiTable
+.zerofill __DATA,__bss,_scrambleAsciiTables,4096,4 ## @scrambleAsciiTables
 	.comm	_passPhrase,16384,4     ## @passPhrase
-.zerofill __DATA,__bss,_unscrambleAsciiTable,256,4 ## @unscrambleAsciiTable
+.zerofill __DATA,__bss,_unscrambleAsciiTables,4096,4 ## @unscrambleAsciiTables
 .zerofill __DATA,__bss,_fileName,8,3    ## @fileName
 	.section	__TEXT,__cstring,cstring_literals
 L_.str:                                 ## @.str
