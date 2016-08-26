@@ -43,6 +43,20 @@ special option (multi layer's password, hide extension, randomize the name)
 
 
 /*
+Installation
+
+MAC:
+clang -Ofast -fno-unroll-loops main.c -o enigmax
+
+LINUX:
+gcc -fno-move-loop-invariants -fno-unroll-loops main.c -o enigmax
+
+you can put the compiled file "enigmax" in your path to use it everywhere
+export PATH=$PATH:/PATH/TO/enigmax
+write in your ~/.bashrc if you want it to stay after a reboot
+*/
+
+/*
 	includes
  */
 #include <stdio.h>
@@ -72,8 +86,8 @@ static const char *fileName;
 static char pathToMainFile[1000] = "./";
 static char _isADirectory;
 static uint64_t seed[2];
-static unsigned char scrambleAsciiTable[256];
-static unsigned char unscrambleAsciiTable[256] = "";
+static unsigned char scrambleAsciiTables[16][256];
+static unsigned char unscrambleAsciiTables[16][256];
 static char isCrypting = 1;
 static char scrambling = 1;
 static long numberOfBuffer;
@@ -244,6 +258,7 @@ uint64_t generateNumber(void) {
 	returned value :  uint64_t randomNumber, a random number generated from the seed
 
 	It is a very fast generator passing BigCrush, http://xoroshiro.di.unimi.it/splitmix64.c
+	It's here only to populate the seed array "s[2]" for xoroshiro
  */
 uint64_t splitmix64(uint64_t* seed) {
 	uint64_t randomNumber = (*seed += UINT64_C(0x9E3779B97F4A7C15));
@@ -299,34 +314,38 @@ void getSeed(char* password){
 	have been switched
  */
 void scramble(FILE* keyFile){
-	char temp = 0;
-
-	for (int i = 0; i < 256; ++i)
+	for (int j = 0; j < 16; ++j)
 	{
-		scrambleAsciiTable[i] = i;
-	}
+		char temp = 0;
 
-	if (keyFile != NULL){
-		int size;
-		char extractedString[BUFFER_SIZE] = "";
-		while((size = fread(extractedString, 1, BUFFER_SIZE, keyFile)) > 0){
-			for (int i = 0; i < size; ++i)
-			{
-				temp = scrambleAsciiTable[i%256];
-				scrambleAsciiTable[i%256] = scrambleAsciiTable[(unsigned char)(extractedString[i])];
-				scrambleAsciiTable[(unsigned char)(extractedString[i])] = temp;
-			}
-		}
-	} else {
-		unsigned char random256;
-		for (int i = 0; i < 10 * 256; ++i)
+		for (int i = 0; i < 256; ++i)
 		{
-			random256 = generateNumber() ^ passPhrase[passIndex];
-			passIndex++;
-			passIndex %= 16384;
-			temp = scrambleAsciiTable[i%256];
-			scrambleAsciiTable[i%256] = scrambleAsciiTable[random256];
-			scrambleAsciiTable[random256] = temp;
+			scrambleAsciiTables[j][i] = i;
+		}
+
+		if (keyFile != NULL){
+			int size;
+			char extractedString[BUFFER_SIZE] = "";
+			while((size = fread(extractedString, 1, BUFFER_SIZE, keyFile)) > 0){
+				for (int i = 0; i < size; ++i)
+				{
+					temp = scrambleAsciiTables[j][i%256];
+					scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][(unsigned char)(extractedString[i])];
+					scrambleAsciiTables[j][(unsigned char)(extractedString[i])] = temp;
+				}
+			}
+			rewind(keyFile);
+		} else {
+			unsigned char random256;
+			for (int i = 0; i < 10 * 256; ++i)
+			{
+				random256 = generateNumber() ^ passPhrase[passIndex];
+				passIndex++;
+				passIndex %= 16384;
+				temp = scrambleAsciiTables[j][i%256];
+				scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][random256];
+				scrambleAsciiTables[j][random256] = temp;
+			}
 		}
 	}
 }
@@ -339,9 +358,13 @@ void scramble(FILE* keyFile){
 	it inverses the key/value in the scramble ascii table making the backward process instantaneous
  */
 void unscramble(){
-	for (int i = 0; i < 256; ++i)
+	for (int j = 0; j < 16; ++j)
 	{
-		unscrambleAsciiTable[(unsigned char) scrambleAsciiTable[i]] = i;
+		for (int i = 0; i < 256; ++i)
+		{
+			unsigned char c = scrambleAsciiTables[j][i];
+			unscrambleAsciiTables[j][c] = i;
+		}
 	}
 }
 
@@ -356,6 +379,11 @@ void unscramble(){
 	Apply the mathematical xor function to extractedString and keyString
 	if we are coding (isCrypting == 1) then we switche the character from the source file then xor it
 	if we are decoding (isCrypting == 0) then we xor the character from the source file then unscramble it
+	The scramble table is chosed thanks to the key: We apply a mask to the unique key to catch the last 4 bytes. 
+	it gives a number from 0 to 15 that is used to chose the scrambled table. 
+	It prevents a frequence analysis of the scrambled file in the event where the unique key has been found. 
+	Thus even if you find the seed and by extension, the unique key, you can't apply headers and try to match 
+	them to the scrambled file in order to deduce the scramble table. You absolutely need the password.
 	we can schemate all the coding/decoding xoring process like this :
 	coding : 	original:a -> scramble:x -> xored:?
 	decoding : 	xored(?) -> unxored(x) -> unscrambled(a)
@@ -365,7 +393,7 @@ void codingXOR(char* extractedString, char* keyString, char* xoredString, int bu
 	int i;
 	for (i = 0; i < bufferLength; ++i)
 	{
-		xoredString[i] = scrambleAsciiTable[(unsigned char)extractedString[i]] ^ keyString[i];
+		xoredString[i] = scrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
 	}
 }
 
@@ -390,7 +418,7 @@ void decodingXOR(char* extractedString, char* keyString, char* xoredString, int 
 	int i;
 	for (i = 0; i < bufferLength; ++i)
 	{
-		xoredString[i] = unscrambleAsciiTable[(unsigned char)(extractedString[i] ^ keyString[i])];
+		xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
 	}
 }
 

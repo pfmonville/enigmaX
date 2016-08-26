@@ -17,6 +17,24 @@ it scrambles the ascii table using the PRNG or the keyFile given to prevent
 an hardware failure allowing ram analysis to invert the xoring process, making
 such an exploit useless.
 
+
+##Installation
+MAC:
+```
+clang -Ofast -fno-unroll-loops main.c -o enigmax
+```
+
+LINUX:
+```
+gcc -fno-move-loop-invariants -fno-unroll-loops main.c -o enigmax
+```
+
+you can put the compiled file "enigmax" in your path to use it everywhere
+```
+export PATH=$PATH:/PATH/TO/enigmax
+```
+write in your ~/.bashrc if you want it to stay after a reboot
+
 ##Utilisation :
 
 ```
