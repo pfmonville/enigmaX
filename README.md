@@ -77,3 +77,6 @@ enigmaX file4 -i keyfile2
 
 lets you choose between crypting or decrypting, uses keyfile2 to generate the scramble table and will prompt for a password that crypt/decrypt the file but will inverts the process: first it xors then it scrambles for the coding process or first it unscrambles then it xors for the decoding process
 
+## How it works
+
+![representation](representation.PNG "Graphical Representation")
