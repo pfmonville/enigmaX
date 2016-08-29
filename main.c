@@ -91,8 +91,10 @@ static unsigned char scrambleAsciiTables[16][256];
 static unsigned char unscrambleAsciiTables[16][256];
 static char isCrypting = 1;
 static char scrambling = 1;
+static char usingKeyFile = 0;
 static char isCodingInverted = 0;
 static long numberOfBuffer;
+static char scramblingTablesOrder[BUFFER_SIZE];
 
 char passPhrase[16384];
 uint64_t passIndex = 0;
@@ -109,10 +111,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG. The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG or the keyFile given\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\n\t-i | --inverted\tinverts the coding/decoding process, first it xors then it scrambles.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command:\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\t%s file3 -s\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG. The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG or the keyFile given\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\n\t-i | --inverted\tinverts the coding/decoding process, first it xors then it scrambles.\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 2.5 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command:\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\t%s file3 -s\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Usage : %s [-h | --help] FILE [-s | --standard | -i | --inverted] [KEYFILE]\nOptions :\n  -h --help :\t\tfurther help\n  -s --standard :\tput the scrambler off\n  -i --inverted :\tinverts the coding/decoding process\n  KEYFILE :\t\tpath to a keyfile that generates the scrambler instead of the password\n", progName);
+			"Version : 2.3\nUsage : %s [-h | --help] FILE [-s | --standard | -i | --inverted] [KEYFILE]\nOptions :\n  -h --help :\t\tfurther help\n  -s --standard :\tput the scrambler off\n  -i --inverted :\tinverts the coding/decoding process\n  KEYFILE :\t\tpath to a keyfile that scrambles the substitution's tables and choose they order instead of the PRNG only\n", progName);
 	}
 	exit(status);
 }
@@ -316,6 +318,7 @@ void getSeed(char* password){
 	have been switched
  */
 void scramble(FILE* keyFile){
+	printf("scrambling substitution's tables...\n");
 	for (int j = 0; j < 16; ++j)
 	{
 		char temp = 0;
@@ -325,15 +328,17 @@ void scramble(FILE* keyFile){
 			scrambleAsciiTables[j][i] = i;
 		}
 
-		if (keyFile != NULL){
+		if (usingKeyFile){
 			int size;
 			char extractedString[BUFFER_SIZE] = "";
+			unsigned char random256;
 			while((size = fread(extractedString, 1, BUFFER_SIZE, keyFile)) > 0){
 				for (int i = 0; i < size; ++i)
 				{
+					random256 = generateNumber() ^ extractedString[i];
 					temp = scrambleAsciiTables[j][i%256];
-					scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][(unsigned char)(extractedString[i])];
-					scrambleAsciiTables[j][(unsigned char)(extractedString[i])] = temp;
+					scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][random256];
+					scrambleAsciiTables[j][random256] = temp;
 				}
 			}
 			rewind(keyFile);
@@ -347,6 +352,25 @@ void scramble(FILE* keyFile){
 				temp = scrambleAsciiTables[j][i%256];
 				scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][random256];
 				scrambleAsciiTables[j][random256] = temp;
+			}
+		}
+	}
+	if(usingKeyFile){
+		int j = 0;
+		char temp[BUFFER_SIZE];
+		while(j < BUFFER_SIZE){
+			int charactersRead = fread(temp, 1, BUFFER_SIZE, keyFile);
+			if(charactersRead == 0){
+				rewind(keyFile);
+				continue;
+			}
+			for (int i = 0; i < charactersRead; ++i)
+			{
+				scramblingTablesOrder[j] = temp[i] & (1+2+4+8);
+				j++;
+				if(j == BUFFER_SIZE){
+					break;
+				}
 			}
 		}
 	}
@@ -393,16 +417,23 @@ void unscramble(){
 void codingXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {
 	int i;
+	char* tablenumber;
+
+	if(usingKeyFile){
+		tablenumber = scramblingTablesOrder;
+	}else{
+		tablenumber = keyString;
+	}
 
 	if(isCodingInverted){
 		for (i = 0; i < bufferLength; ++i)
 		{
-			xoredString[i] = scrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+			xoredString[i] = scrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
 		}
 	}else{
 		for (i = 0; i < bufferLength; ++i)
 		{
-			xoredString[i] = scrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+			xoredString[i] = scrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
 		}
 	}
 }
@@ -426,16 +457,23 @@ void codingXOR(char* extractedString, char* keyString, char* xoredString, int bu
 void decodingXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {
 	int i;
+	char* tablenumber;
+
+	if(usingKeyFile){
+		tablenumber = scramblingTablesOrder;
+	}else{
+		tablenumber = keyString;
+	}
 
 	if(isCodingInverted){
 		for (i = 0; i < bufferLength; ++i)
 		{
-			xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+			xoredString[i] = unscrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
 		}
 	}else{
 		for (i = 0; i < bufferLength; ++i)
 		{
-			xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+			xoredString[i] = unscrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
 		}
 	}
 }
@@ -475,7 +513,7 @@ void standardXOR(char* extractedString, char* keyString, char* xoredString, int 
 	mainFile : pointer to the file given by the user
 	extractedString : will contains the data extracted from the source file in a string format
 	keyString : will contains a part of the unique key in a string format
-	returned value : the size of the data reed
+	returned value : the size of the data read
 
 	read a packet of data from the source file
 	return the length of the packet which is the buffer size (BUFFER_SIZE)
@@ -781,6 +819,10 @@ int main(int argc, char const *argv[])
 		} else if(keyFile != NULL && argc >= 4){
 			printf("Error: Too many arguments\n");
 			usage(1);
+		}
+
+		if(keyFile != NULL){
+			usingKeyFile = 1;
 		}
 		
 	}
