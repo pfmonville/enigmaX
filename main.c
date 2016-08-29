@@ -4,22 +4,20 @@
 // permet de chiffrer et de déchiffrer tout fichier donné en paramètre
 // le mot de passe demandé au début est hashé puis sert de graine pour le PRNG
 // le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder
-// ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe)
-// De plus un brouilleur est utilisé, il mélange la table des caractères (ascii)
-// en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille
-// matériel permettrait d'analyser la ram afin d'inverser les xor, le résultat
-// obtenu serait toujours illisible.
+// La clé unique subit un xor avec le mot de passe (le mot de passe est répété 
+// autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis
+// un brouilleur est utilisé, il mélange la table des caractères (ascii)
+// en utilisant le PRNG ou en utilisant le keyFile fourni.
 //
 // Can crypt and decrypt any file given in argument. The password asked is hashed
 // to be used as a seed for the PRNG. The PRNG gives a unique key
-// which has the same length as the source file, thus the security is maximum
-// (the only way to break through is by bruteforce). Moreover, a scrambler is used,
-// it scrambles the ascii table using the PRNG or the keyFile given to prevent
-// an hardware failure allowing ram analysis to invert the xoring process, making
-// such an exploit useless.
+// which has the same length as the source file. The key is xored with the password 
+// (rthe password is repeated as long as necessary). The file is then xored with this
+// new key, then a scrambler is used.
+// it scrambles the ascii table using the PRNG or the keyFile given.
 //
 // USAGE : 
-//		enigmax [-h | --help] FILE [-s | --standard | KEYFILE]
+//		enigmax [-h | --help] FILE [-s | --standard | -i | --inverted] [KEYFILE]
 //
 // 		code or decode the given file
 //
@@ -28,6 +26,9 @@
 //
 // 		-s --standard : 
 // 	 		put the scrambler off
+//
+//		-i --inverted :
+//			inverts the coding/decoding process, first it xors then it scrambles
 //
 // 		-h --help : 
 // 			further help
@@ -90,6 +91,7 @@ static unsigned char scrambleAsciiTables[16][256];
 static unsigned char unscrambleAsciiTables[16][256];
 static char isCrypting = 1;
 static char scrambling = 1;
+static char isCodingInverted = 0;
 static long numberOfBuffer;
 
 char passPhrase[16384];
@@ -107,10 +109,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder ainsi la sécurité est maximale (seule solution, bruteforcer le mot de passe) De plus un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni au cas où une faille matérielle permettrait d'analyser la ram afin d'inverser les xor, le résultat obtenu serait toujours illisible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG. The PRNG gives a unique key which has the same length as the source file, thus the security is maximum(the only way to break through is by bruteforce). Moreover, a scrambler is used,it scrambles the ascii table using the PRNG or the keyFile given to prevent an hardware failure allowing ram analysis to invert the xoring process, making such an exploit useless.\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command:\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\t%s file3 -s\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG. The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG or the keyFile given\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\n\t-i | --inverted\tinverts the coding/decoding process, first it xors then it scrambles.\n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command:\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\t%s file3 -s\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Usage : %s [-h | --help] FILE [-s | --standard | KEYFILE]\nOptions :\n  -h --help :\t\tfurther help\n  -s --standard :\tput the scrambler off\n  KEYFILE :\t\tpath to a keyfile that generates the scrambler instead of the password\n", progName);
+			"Usage : %s [-h | --help] FILE [-s | --standard | -i | --inverted] [KEYFILE]\nOptions :\n  -h --help :\t\tfurther help\n  -s --standard :\tput the scrambler off\n  -i --inverted :\tinverts the coding/decoding process\n  KEYFILE :\t\tpath to a keyfile that generates the scrambler instead of the password\n", progName);
 	}
 	exit(status);
 }
@@ -391,9 +393,17 @@ void unscramble(){
 void codingXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {
 	int i;
-	for (i = 0; i < bufferLength; ++i)
-	{
-		xoredString[i] = scrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+
+	if(isCodingInverted){
+		for (i = 0; i < bufferLength; ++i)
+		{
+			xoredString[i] = scrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+		}
+	}else{
+		for (i = 0; i < bufferLength; ++i)
+		{
+			xoredString[i] = scrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+		}
 	}
 }
 
@@ -416,9 +426,17 @@ void codingXOR(char* extractedString, char* keyString, char* xoredString, int bu
 void decodingXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {
 	int i;
-	for (i = 0; i < bufferLength; ++i)
-	{
-		xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+
+	if(isCodingInverted){
+		for (i = 0; i < bufferLength; ++i)
+		{
+			xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+		}
+	}else{
+		for (i = 0; i < bufferLength; ++i)
+		{
+			xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+		}
 	}
 }
 
@@ -725,18 +743,46 @@ int main(int argc, char const *argv[])
 	}
 	if (argc < 2) {
 		usage(1);
+	} else if(argc >= 5 ) { 
+		printf("Error: Too many arguments\n");
+		usage(1);
 	} else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
 		usage(0);
 	}
 
 	if (argc >= 3)
 	{
+		//test if the option -s is present
 		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
-		scrambling = 0;
+			scrambling = 0;
+			//if there is a keyfile, warns that it will not be used 
+			if(argc >= 4){
+				if((keyFile = fopen(argv[3], "r")) == NULL){
+					perror(argv[3]);
+					usage(1);
+				}
+				printf("Warning: with the -s|--standard option, the keyfile will not bu used\n");
+				keyFile = NULL;
+			}
+		//else the option -i
+		} else if (strcmp(argv[2], "-i") == 0 || strcmp(argv[2], "--inverted") == 0){
+			isCodingInverted = 1;
+			//if i is present, checks if there is a keyfile in the third argument
+			if(argc >= 4){
+				if((keyFile = fopen(argv[3], "r")) == NULL){
+					perror(argv[3]);
+					usage(1);
+				}
+			}
+		//if no option is present test if the second argument is a keyfile
 		} else if ((keyFile = fopen(argv[2], "r")) == NULL) {
 			perror(argv[2]);
 			usage(1);
+		} else if(keyFile != NULL && argc >= 4){
+			printf("Error: Too many arguments\n");
+			usage(1);
 		}
+		
 	}
 
 	if (argv[1][strlen(argv[1])-1] == '/' && argv[1][strlen(argv[1])-2] == '/')
