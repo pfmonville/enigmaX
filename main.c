@@ -1,37 +1,45 @@
 // Copyright <Pierre-François Monville>
 // ===========================================================================
 // 									enigmaX
-// permet de chiffrer et de déchiffrer tout fichier donné en paramètre
-// le mot de passe demandé au début est hashé puis sert de graine pour le PRNG
-// le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder
-// La clé unique subit un xor avec le mot de passe (le mot de passe est répété 
-// autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis
-// un brouilleur est utilisé, il mélange la table des caractères (ascii)
-// en utilisant le PRNG ou en utilisant le keyFile fourni.
+// permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. 
+// Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). 
+// Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. 
+// La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). 
+// Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, 
+// il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 
+// 16 tables de brouillages sont utilisées au total dans un ordre non prédictible.
 //
-// Can crypt and decrypt any file given in argument. The password asked is hashed
-// to be used as a seed for the PRNG. The PRNG gives a unique key
-// which has the same length as the source file. The key is xored with the password 
-// (rthe password is repeated as long as necessary). The file is then xored with this
-// new key, then a scrambler is used.
-// it scrambles the ascii table using the PRNG or the keyFile given.
+// Can crypt and decrypt any data given in argument. 
+// The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). 
+// The PRNG gives a unique key which has the same length as the source file. 
+// The key is xored with the password (the password is repeated as long as necessary). 
+// The file is then xored with this new key, then a scrambler is used. 
+// It scrambles the ascii table using the PRNG and the keyfile if it is given. 
+// 16 scramble's tables are used in an unpredictible order.
 //
 // USAGE : 
-//		enigmax [-h | --help] FILE [-s | --standard | -i | --inverted] [KEYFILE]
+//		enigmax [options] FILE [KEYFILE]
 //
 // 		code or decode the given file
 //
 // 		KEYFILE: 
 // 			path to a keyfile that is used to generate the scrambler instead of the password
 //
-// 		-s --standard : 
+// 		-s (simple) : 
 // 	 		put the scrambler off
 //
-//		-i --inverted :
+//		-i (inverted) :
 //			inverts the coding/decoding process, first it xors then it scrambles
+//
+//		-n (normalised) :
+//			normalise the size of the keyFile, improving too short (less secure) or too long (take long time) keyFiles
+//
+//		-d (destroy) :
+//			delete the main file at the end of the process
 //
 // 		-h --help : 
 // 			further help
+//
 //
 // ===========================================================================
 
@@ -54,7 +62,7 @@ gcc -fno-move-loop-invariants -fno-unroll-loops main.c -o enigmax
 
 you can put the compiled file "enigmax" in your path to use it everywhere
 export PATH=$PATH:/PATH/TO/enigmax
-write in your ~/.bashrc if you want it to stay after a reboot
+write it in your ~/.bashrc if you want it to stay after a reboot
 */
 
 /*
@@ -86,18 +94,22 @@ static const char *progName;
 static const char *fileName;
 static char pathToMainFile[1000] = "./";
 static char _isADirectory;
-static uint64_t seed[2];
+static uint64_t seed[16];
+static int seedIndex = 0;
 static unsigned char scrambleAsciiTables[16][256];
 static unsigned char unscrambleAsciiTables[16][256];
 static char isCrypting = 1;
 static char scrambling = 1;
 static char usingKeyFile = 0;
 static char isCodingInverted = 0;
+static char normalised = 0;
 static long numberOfBuffer;
 static char scramblingTablesOrder[BUFFER_SIZE];
 
-char passPhrase[16384];
-uint64_t passIndex = 0;
+static char passPhrase[16384];
+static uint64_t passIndex = 0;
+static int passPhraseSize = 0;
+static int keyFileSize = 0;
 
 /*
 	-static void usage(int status)
@@ -111,10 +123,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [-h | --help] FILE [-s | --standard | KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre le mot de passe demandé au début est hashé puis sert de graine pour le PRNG le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG ou en utilisant le keyFile fourni.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG. The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG or the keyFile given\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s | --standard\tput the scrambler on off.\n\n\t-i | --inverted\tinverts the coding/decoding process, first it xors then it scrambles.\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 2.5 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command:\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command:\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command:\t%s file3 -s\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler, resulting in using the unique key only.\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE [KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 16 tables de brouillages sont utilisées au total dans un ordre non prédictible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 16 scramble's tables are used in an unpredictible order.\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s (simple)\tputs the scrambler on off.\n\n\t-i (inverted)\tinverts the coding/decoding process, first it xors then it scrambles.\n\n\t-n (normalised)\tnormalises the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\tdelete the main file at the end of the process\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 4 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as file2x in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -dni file4 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n'), inverts the scrambling phase with the xoring phase(option 'i') and destroy the main file afterwards(option 'd')\n", progName, progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"Version : 2.3\nUsage : %s [-h | --help] FILE [-s | --standard | -i | --inverted] [KEYFILE]\nOptions :\n  -h --help :\t\tfurther help\n  -s --standard :\tput the scrambler off\n  -i --inverted :\tinverts the coding/decoding process\n  KEYFILE :\t\tpath to a keyfile that scrambles the substitution's tables and choose they order instead of the PRNG only\n", progName);
+			"\nVersion : 3.0\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinverts the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\tdelete the main file afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n", progName);
 	}
 	exit(status);
 }
@@ -152,7 +164,7 @@ void clearBuffer()
 
 /*
 	-int readStr(char *str, unsigned long size)
-	returned value : the string 'str' of size 'size'
+	returned value : 1 on success, 0 on failure
 
 	basicaly, it's doing a fgets but take care of the buffer
 */
@@ -235,78 +247,128 @@ static inline uint64_t rotationLinearTransformation(const uint64_t seed, int con
 	return (seed << constant) | (seed >> (64 - constant));
 }
 
+
 /*
 	-uint64_t generateNumber(void)
 	returned value :  uint64_t number (equivalent to long long but on all OS)
 
 	random number generator
-	with the xoroshiro128+ algorythm which is one of the quickiest PRNG
+	with the xorshift1024* algorythm
+	represents 2^1024 states which is equal to 95^x with x the maximum number of characters before looping to an already known state and 95 equals the number of different symbols that can be used for the password. Here x = 156 characters
 	it passes the BigCrush test :
-	http://xoroshiro.di.unimi.it/xoroshiro128plus.c
+	http://xoroshiro.di.unimi.it/xorshift1024star.c
  */
 uint64_t generateNumber(void) {
-	const uint64_t seed0 = seed[0];
-	uint64_t seed1 = seed[1];
-	const uint64_t result = seed0 + seed1;
+	const uint64_t seed0 = seed[seedIndex];
+	uint64_t seed1 = seed[seedIndex = (seedIndex + 1) & 15];
 
-	seed1 ^= seed0;
-	seed[0] = rotationLinearTransformation(seed0, 55) ^ seed1 ^ (seed1 << 14); // a, b
-	seed[1] = rotationLinearTransformation(seed1, 36); // c
+	seed1 ^= seed1 << 31; // a
+	seed[seedIndex] = seed1 ^ seed0 ^ (seed1 >> 11) ^ (seed0 >> 30); // b,c
 
-	return result;
-}
-
-/*
-	-uint64_t splitmix64(uint64_t* seed)
-	seed : the seed which is modified after each call
-	returned value :  uint64_t randomNumber, a random number generated from the seed
-
-	It is a very fast generator passing BigCrush, http://xoroshiro.di.unimi.it/splitmix64.c
-	It's here only to populate the seed array "s[2]" for xoroshiro
- */
-uint64_t splitmix64(uint64_t* seed) {
-	uint64_t randomNumber = (*seed += UINT64_C(0x9E3779B97F4A7C15));
-	randomNumber = (randomNumber ^ (randomNumber >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
-	randomNumber = (randomNumber ^ (randomNumber >> 27)) * UINT64_C(0x94D049BB133111EB);
-	return randomNumber ^ (randomNumber >> 31);
+	return seed[seedIndex] * UINT64_C(1181783497276652981);
 }
 
 
 /*
-	-uint64_t getHash(char* password)
-	password : a string which is the password typed by the user
-	returned value :  uint64_t number representing the hash of the string
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+less readable implementation for sha-3 (Keccak) cryptographic hash function
+see : https://github.com/gvanas/KeccakCodePackage/blob/master/Standalone/CompactFIPS202/Keccak-more-compact.c
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+*/
+#define FOR(i,n) for(i=0; i<n; ++i)
+typedef unsigned char u8;
+typedef unsigned long long int u64;
+typedef unsigned int ui;
 
-	simple function that hashes a string into numbers (djb2)
- */
-uint64_t getHash(char* password)
+void Keccak(ui r, ui c, const u8 *in, u64 inLen, u8 sfx, u8 *out, u64 outLen);
+void FIPS202_SHAKE128(const u8 *in, u64 inLen, u8 *out, u64 outLen) { Keccak(1344, 256, in, inLen, 0x1F, out, outLen); }
+void FIPS202_SHAKE256(const u8 *in, u64 inLen, u8 *out, u64 outLen) { Keccak(1088, 512, in, inLen, 0x1F, out, outLen); }
+void FIPS202_SHA3_224(const u8 *in, u64 inLen, u8 *out) { Keccak(1152, 448, in, inLen, 0x06, out, 28); }
+void FIPS202_SHA3_256(const u8 *in, u64 inLen, u8 *out) { Keccak(1088, 512, in, inLen, 0x06, out, 32); }
+void FIPS202_SHA3_384(const u8 *in, u64 inLen, u8 *out) { Keccak(832, 768, in, inLen, 0x06, out, 48); }
+void FIPS202_SHA3_512(const u8 *in, u64 inLen, u8 *out) { Keccak(576, 1024, in, inLen, 0x06, out, 64); }
+
+int LFSR86540(u8 *R) { (*R)=((*R)<<1)^(((*R)&0x80)?0x71:0); return ((*R)&2)>>1; }
+#define ROL(a,o) ((((u64)a)<<o)^(((u64)a)>>(64-o)))
+static u64 load64(const u8 *x) { ui i; u64 u=0; FOR(i,8) { u<<=8; u|=x[7-i]; } return u; }
+static void store64(u8 *x, u64 u) { ui i; FOR(i,8) { x[i]=u; u>>=8; } }
+static void xor64(u8 *x, u64 u) { ui i; FOR(i,8) { x[i]^=u; u>>=8; } }
+#define rL(x,y) load64((u8*)s+8*(x+5*y))
+#define wL(x,y,l) store64((u8*)s+8*(x+5*y),l)
+#define XL(x,y,l) xor64((u8*)s+8*(x+5*y),l)
+void KeccakF1600(void *s)
 {
-	uint64_t hash = 5381;
-	char c;
+    ui r,x,y,i,j,Y; u8 R=0x01; u64 C[5],D;
+    for(i=0; i<24; i++) {
+        /*θ*/ FOR(x,5) C[x]=rL(x,0)^rL(x,1)^rL(x,2)^rL(x,3)^rL(x,4); FOR(x,5) { D=C[(x+4)%5]^ROL(C[(x+1)%5],1); FOR(y,5) XL(x,y,D); }
+        /*ρπ*/ x=1; y=r=0; D=rL(x,y); FOR(j,24) { r+=j+1; Y=(2*x+3*y)%5; x=y; y=Y; C[0]=rL(x,y); wL(x,y,ROL(D,r%64)); D=C[0]; }
+        /*χ*/ FOR(y,5) { FOR(x,5) C[x]=rL(x,y); FOR(x,5) wL(x,y,C[x]^((~C[(x+1)%5])&C[(x+2)%5])); }
+        /*ι*/ FOR(j,7) if (LFSR86540(&R)) XL(0,0,(u64)1<<((1<<j)-1));
+    }
+}
+void Keccak(ui r, ui c, const u8 *in, u64 inLen, u8 sfx, u8 *out, u64 outLen)
+{
+    /*initialize*/ u8 s[200]; ui R=r/8; ui i,b=0; FOR(i,200) s[i]=0;
+    /*absorb*/ while(inLen>0) { b=(inLen<R)?inLen:R; FOR(i,b) s[i]^=in[i]; in+=b; inLen-=b; if (b==R) { KeccakF1600(s); b=0; } }
+    /*pad*/ s[b]^=sfx; if((sfx&0x80)&&(b==(R-1))) KeccakF1600(s); s[R-1]^=0x80; KeccakF1600(s);
+    /*squeeze*/ while(outLen>0) { b=(outLen<R)?outLen:R; FOR(i,b) out[i]=s[i]; out+=b; outLen-=b; if(outLen>0) KeccakF1600(s); }
+}
+/*
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+END of sha-3(keccak) implementation
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+*/
 
-	while((c = *password++))
-	{
-		hash = ((hash << 5) + hash) + c; // hash * 33 + password[i]
-	}
+/*
+	-void getHash(unsigned char* output, char* password)
+	output : a 128 Byte string to store the output
+	password : a string which is the password typed by the user
+	
+	uses sha-3 (Keccak) hash function to hash the password into a 1024 bits flow
+ */
+void getHash(char* output, char* password){
 
-	return hash;
+	FIPS202_SHAKE256((unsigned char*)password, strlen(password), (unsigned char*)output, 128);
 }
 
 
 /*
 	-void getSeed(char* password)
-	password: the string corresponding to the password given by the user
+	password : the string corresponding to the password given by the user
 
 	this function is here to populate the seed for the PRNG, 
-	it hashes the password first then get two 64 bit number from it thanks to splitmix64
-	and put the first two outputs into seed[0] and seed[1]
+	it hashes the password then puts the output into the seed array
 */
 void getSeed(char* password){
-	uint64_t hash = getHash(password);
+	char hash[128];
+	getHash(hash, password);
 
-	seed[0] = splitmix64(&hash);
-	seed[1] = splitmix64(&hash);
+	for (int i = 0; i < 16; ++i)
+	{
+		memcpy (&seed[i], hash + (sizeof(uint64_t) * i), sizeof (uint64_t));
+	}
 }
+
+/*
+	-void getNext255StringFromKeyFile(FILE* keyFile)
+	keyFile : the keyFile on which we will extract the string
+
+	Get a 255 string from the keyFile it stops at 255 if keyFile is too long
+	and make it loop if keyFile is too short
+ */
+void getNext255StringFromKeyFile(FILE* keyFile, char* extractedString){
+	long charactersRead = 0;
+	while(charactersRead < 255){
+
+		long size = fread(extractedString + charactersRead, 1, 255 - charactersRead, keyFile);
+		if(size == 0){
+			rewind(keyFile);
+			continue;
+		}
+		charactersRead += size;
+	}
+}
+
 
 /*
 	-void scramble(FILE* keyFile)
@@ -318,9 +380,12 @@ void getSeed(char* password){
 	have been switched
  */
 void scramble(FILE* keyFile){
-	printf("scrambling substitution's tables...\n");
+	printf("scrambling substitution's tables, may be long...");
+	fflush(stdout);
 	for (int j = 0; j < 16; ++j)
 	{
+		printf("\rscrambling substitution's tables, may be long...(%d/16)", j + 1);
+		fflush(stdout);
 		char temp = 0;
 
 		for (int i = 0; i < 256; ++i)
@@ -329,28 +394,34 @@ void scramble(FILE* keyFile){
 		}
 
 		if (usingKeyFile){
-			int size;
-			char extractedString[BUFFER_SIZE] = "";
 			unsigned char random256;
-			while((size = fread(extractedString, 1, BUFFER_SIZE, keyFile)) > 0){
-				for (int i = 0; i < size; ++i)
+			long numberOfCycles = ceilRound((float)keyFileSize/(float)255);
+			if(normalised){
+				numberOfCycles = 1;
+			}
+			for (int i = 0; i < numberOfCycles; ++i)
+			{
+				char extractedString[255];
+				getNext255StringFromKeyFile(keyFile, extractedString);
+				for (int i = 0; i < 255; ++i)
 				{
-					random256 = generateNumber() ^ extractedString[i];
-					temp = scrambleAsciiTables[j][i%256];
-					scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][random256];
+					//generate number between i and 255 according to Fisher and Yates shuffle algorithm
+					random256 = (char)((float)((char)(generateNumber()) ^ extractedString[i]) / 255.0 * (255.0 - i) + i);
+					temp = scrambleAsciiTables[j][i];
+					scrambleAsciiTables[j][i] = scrambleAsciiTables[j][random256];
 					scrambleAsciiTables[j][random256] = temp;
 				}
 			}
-			rewind(keyFile);
 		} else {
 			unsigned char random256;
-			for (int i = 0; i < 10 * 256; ++i)
+			for (int i = 0; i < 255; ++i)
 			{
-				random256 = generateNumber() ^ passPhrase[passIndex];
+				//generate number between i and 255 according to Fisher and Yates shuffle algorithm
+				random256 = (char)((float)((char)(generateNumber()) ^ passPhrase[passIndex]) / 255.0 * (255.0 - i) + i);
 				passIndex++;
-				passIndex %= 16384;
-				temp = scrambleAsciiTables[j][i%256];
-				scrambleAsciiTables[j][i%256] = scrambleAsciiTables[j][random256];
+				passIndex %= passPhraseSize;
+				temp = scrambleAsciiTables[j][i];
+				scrambleAsciiTables[j][i] = scrambleAsciiTables[j][random256];
 				scrambleAsciiTables[j][random256] = temp;
 			}
 		}
@@ -359,12 +430,12 @@ void scramble(FILE* keyFile){
 		int j = 0;
 		char temp[BUFFER_SIZE];
 		while(j < BUFFER_SIZE){
-			int charactersRead = fread(temp, 1, BUFFER_SIZE, keyFile);
-			if(charactersRead == 0){
+			int size = fread(temp, 1, BUFFER_SIZE, keyFile);
+			if(size == 0){
 				rewind(keyFile);
 				continue;
 			}
-			for (int i = 0; i < charactersRead; ++i)
+			for (int i = 0; i < size; ++i)
 			{
 				scramblingTablesOrder[j] = temp[i] & (1+2+4+8);
 				j++;
@@ -374,6 +445,7 @@ void scramble(FILE* keyFile){
 			}
 		}
 	}
+	printf("\rscrambling substitution's tables... Done               \n");
 }
 
 
@@ -417,23 +489,30 @@ void unscramble(){
 void codingXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {
 	int i;
-	char* tablenumber;
 
 	if(usingKeyFile){
-		tablenumber = scramblingTablesOrder;
-	}else{
-		tablenumber = keyString;
-	}
-
-	if(isCodingInverted){
-		for (i = 0; i < bufferLength; ++i)
-		{
-			xoredString[i] = scrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+		if(isCodingInverted){
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = scrambleAsciiTables[(scramblingTablesOrder[i] ^ keyString[i]) & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+			}
+		}else{
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = scrambleAsciiTables[(scramblingTablesOrder[i] ^ keyString[i]) & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+			}
 		}
 	}else{
-		for (i = 0; i < bufferLength; ++i)
-		{
-			xoredString[i] = scrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+		if(isCodingInverted){
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = scrambleAsciiTables[(keyString[i]) & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+			}
+		}else{
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = scrambleAsciiTables[(keyString[i]) & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+			}
 		}
 	}
 }
@@ -457,23 +536,30 @@ void codingXOR(char* extractedString, char* keyString, char* xoredString, int bu
 void decodingXOR(char* extractedString, char* keyString, char* xoredString, int bufferLength)
 {
 	int i;
-	char* tablenumber;
 
 	if(usingKeyFile){
-		tablenumber = scramblingTablesOrder;
-	}else{
-		tablenumber = keyString;
-	}
-
-	if(isCodingInverted){
-		for (i = 0; i < bufferLength; ++i)
-		{
-			xoredString[i] = unscrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+		if(isCodingInverted){
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = unscrambleAsciiTables[(scramblingTablesOrder[i] ^ keyString[i]) & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+			}
+		}else{
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = unscrambleAsciiTables[(scramblingTablesOrder[i] ^ keyString[i]) & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+			}
 		}
 	}else{
-		for (i = 0; i < bufferLength; ++i)
-		{
-			xoredString[i] = unscrambleAsciiTables[tablenumber[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+		if(isCodingInverted){
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)extractedString[i]] ^ keyString[i];
+			}
+		}else{
+			for (i = 0; i < bufferLength; ++i)
+			{
+				xoredString[i] = unscrambleAsciiTables[keyString[i] & (1+2+4+8)][(unsigned char)(extractedString[i] ^ keyString[i])];
+			}
 		}
 	}
 }
@@ -528,22 +614,6 @@ void standardXOR(char* extractedString, char* keyString, char* xoredString, int 
 									  then the index overflows and it returns to 0 again
 									  generataNumberX ^ passPhrase[0]
 									  ...
-
-	former version (multiply execution time by 5) :
-	int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
-	{
-		int i = 0;
-
-		while(!feof(mainFile) && i < BUFFER_SIZE)
-		{
-			char charBuffer = fgetc(mainFile);
-			if (feof(mainFile)) break; //special debug for the last character in text files
-			extractedString[i] = charBuffer;
-			i++;
-		}
-
-		return i;
-	}
  */
 int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 {
@@ -551,9 +621,9 @@ int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 
 	for (int i = 0; i < charactersRead; ++i)
 	{
-		keyString[i] = (char)generateNumber() ^ passPhrase[passIndex];
+		keyString[i] = (char)(generateNumber()) ^ passPhrase[passIndex];
 		passIndex++;
-		passIndex %= 16384;
+		passIndex %= passPhraseSize;
 	}
 
 	return charactersRead;
@@ -634,7 +704,7 @@ void code (FILE* mainFile)
 	// opening the output file
 	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
 		perror(codedFileName);
-		printf("exiting\n");
+		printf("exiting...\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -698,7 +768,7 @@ void decode(FILE* mainFile)
 	strcat(pathToMainFile, decodedFileName);
 	if ((decodedFile = fopen(pathToMainFile, "w+")) == NULL) {
 		perror(decodedFileName);
-		printf("exiting\n");
+		printf("exiting...\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -741,10 +811,10 @@ int isADirectory(char* path){
     int statStatus = stat(path, &statStruct);
     if(-1 == statStatus) {
         if(ENOENT == errno) {
-            printf("error: file's path is not correct, one or several directories and or file are missing\n");
+            printf("Error : file's path is not correct, one or several directories and or file are missing\n");
         } else {
             perror("stat");
-            printf("exiting\n");
+            printf("exiting...\n");
             exit(1);
         }
     } else {
@@ -756,7 +826,7 @@ int isADirectory(char* path){
             return 0; //it's not a directory
         }
     }
-    printf("exiting\n");
+    printf("exiting...\n");
     exit(1);
 }
 
@@ -782,75 +852,108 @@ int main(int argc, char const *argv[])
 	if (argc < 2) {
 		usage(1);
 	} else if(argc >= 5 ) { 
-		printf("Error: Too many arguments\n");
+		printf("Error : Too many arguments\n");
 		usage(1);
 	} else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
 		usage(0);
 	}
 
+	char filePosition = 1;
+	char wantsToDeleteFirstFile = 0;
+
 	if (argc >= 3)
 	{
-		//test if the option -s is present
-		if (strcmp(argv[2], "-s") == 0 || strcmp(argv[2], "--standard") == 0){
-			scrambling = 0;
-			//if there is a keyfile, warns that it will not be used 
+		if(argv[1][0] == '-' && strlen(argv[1]) <= 4){
+			if(strchr(argv[1], 's') != NULL){
+				scrambling = 0;
+			}
+			if(strchr(argv[1], 'i') != NULL){
+				isCodingInverted = 1;
+			}
+			if(strchr(argv[1], 'n') != NULL){
+				normalised = 1;
+			}
+			if(strchr(argv[1], 'd') != NULL){
+				wantsToDeleteFirstFile = 1;
+				printf("Warning : with the option 'd'(delete) the main file will be deleted at the end\n");
+			}
+			if(scrambling && !isCodingInverted && !normalised && !wantsToDeleteFirstFile){
+				printf("Error : no valid option has been found\n");
+				usage(1);
+			} else{
+				filePosition = 2;
+			}
 			if(argc >= 4){
 				if((keyFile = fopen(argv[3], "r")) == NULL){
 					perror(argv[3]);
 					usage(1);
 				}
-				printf("Warning: with the -s|--standard option, the keyfile will not bu used\n");
-				keyFile = NULL;
-			}
-		//else the option -i
-		} else if (strcmp(argv[2], "-i") == 0 || strcmp(argv[2], "--inverted") == 0){
-			isCodingInverted = 1;
-			//if i is present, checks if there is a keyfile in the third argument
-			if(argc >= 4){
-				if((keyFile = fopen(argv[3], "r")) == NULL){
-					perror(argv[3]);
-					usage(1);
+				if(keyFile != NULL){
+					if(isADirectory((char*)argv[3])){
+						printf("Warning : the keyfile is a directory and will not be used\n");
+						keyFile = NULL;
+					}else if(!scrambling){
+						printf("Warning : with the option 's'(simple), the keyfile will not bu used\n");
+						keyFile = NULL;
+					}
 				}
 			}
-		//if no option is present test if the second argument is a keyfile
 		} else if ((keyFile = fopen(argv[2], "r")) == NULL) {
 			perror(argv[2]);
 			usage(1);
-		} else if(keyFile != NULL && argc >= 4){
-			printf("Error: Too many arguments\n");
-			usage(1);
+		} else if(keyFile != NULL){
+			if(isADirectory((char*)argv[2])){
+				printf("Warning : the keyfile is a directory and will not be used\n");
+				keyFile = NULL;
+			}
+			if(argc >= 4){
+				printf("Error : Too many arguments\n");
+				usage(1);
+			}
 		}
 
 		if(keyFile != NULL){
 			usingKeyFile = 1;
+			rewind(keyFile);
+			fseek(keyFile, 0, SEEK_END);
+			keyFileSize = ftell(keyFile);
+			rewind(keyFile);
+
+			if(keyFileSize == 0){
+				printf("Warning : the keyFile is empty and thus will not be used\n");
+				keyFile = NULL;
+				usingKeyFile = 0;
+			}
+		}
+		if(!usingKeyFile && normalised){
+			printf("Warning : without the keyFile, the option 'n'(normalised) will be ignored\n");
+			normalised = 0;
 		}
 		
 	}
 
-	if (argv[1][strlen(argv[1])-1] == '/' && argv[1][strlen(argv[1])-2] == '/')
+	if (argv[filePosition][strlen(argv[filePosition])-1] == '/' && argv[filePosition][strlen(argv[filePosition])-2] == '/')
 	{
-		printf("error: several trailing '/' in the path of your file\n");
-		printf("exiting\n");
+		printf("Error : several trailing '/' in the path of your file\n");
+		printf("exiting...\n");
 		exit(1);
 	}
 
 	//outside their scope because we need to free them at the end
 	char* tarName = NULL;
 	char* dirName = NULL;
-	char *copyOfArgv1 = (char*) calloc(1, sizeof(char) * strlen(argv[1]));
-	strcpy(copyOfArgv1, argv[1]);
-	if (isADirectory(copyOfArgv1)){
+	if (isADirectory((char*)argv[filePosition])){
 		char command[1008] = {'\0'};
 		//we don't need that anymore
 		printf("regrouping the folder in one file using tar, may be long...");
 		fflush(stdout);
 		// get the name of the folder in a string and get the path
-		if ((fileName = strrchr(argv[1], '/')) != NULL) {
+		if ((fileName = strrchr(argv[filePosition], '/')) != NULL) {
 			//if the '/' is the last character in the string, delete it and get the fileName again
 			if (strlen(fileName) == 1){
-				dirName = (char*) calloc(1, sizeof(char) * (strlen(argv[1]) + 5));
-				strcpy(dirName, argv[1]);
-				*(dirName+(fileName-argv[1])) = '\0';
+				dirName = (char*) calloc(1, sizeof(char) * (strlen(argv[filePosition]) + 5));
+				strcpy(dirName, argv[filePosition]);
+				*(dirName+(fileName-argv[filePosition])) = '\0';
 				if ((fileName = strrchr(dirName, '/')) != NULL){
 					++fileName;
 					strncpy(pathToMainFile, dirName, fileName - dirName);
@@ -862,12 +965,12 @@ int main(int argc, char const *argv[])
 			}
 			else {
 				++fileName;
-				strncpy(pathToMainFile, argv[1], fileName - argv[1]);
-				pathToMainFile[fileName - argv[1]] = '\0';
+				strncpy(pathToMainFile, argv[filePosition], fileName - argv[filePosition]);
+				pathToMainFile[fileName - argv[filePosition]] = '\0';
 			}
 		}
 		else {
-			fileName = argv[1];
+			fileName = argv[filePosition];
 		}
 		// get the full path of the tarFile in a dynamic variable tarName
 		tarName = (char*) calloc(1, sizeof(char) * (strlen(fileName) + 5));
@@ -890,8 +993,8 @@ int main(int argc, char const *argv[])
 		// make the archive of the folder with tar
 		int status;
 		if((status = system(command)) != 0){ //if problems when taring
-			printf("\nerror: unable to tar your file\n");
-			printf("exiting\n");
+			printf("\nError : unable to tar your file\n");
+			printf("exiting...\n");
 			exit(1);
 		}else{
 			printf("\rregrouping the folder in one file using tar... Done          \n");			
@@ -904,24 +1007,23 @@ int main(int argc, char const *argv[])
 		sprintf(pathPlusName, "%s%s", pathToMainFile, fileName);
 		if ((mainFile = fopen(pathPlusName, "r")) == NULL) {
 			perror(pathPlusName);
-			printf("exiting\n");
+			printf("exiting...\n");
 			return EXIT_FAILURE;
 		}
 	}
 	else{
-		if ((fileName = strrchr(argv[1], '/')) != NULL) {
+		if ((fileName = strrchr(argv[filePosition], '/')) != NULL) {
 			++fileName;
-			strncpy(pathToMainFile, argv[1], fileName - argv[1]);		
+			strncpy(pathToMainFile, argv[filePosition], fileName - argv[filePosition]);		
 		} else {
-			fileName = argv[1];
+			fileName = argv[filePosition];
 		}
-		if ((mainFile = fopen(argv[1], "r")) == NULL) {
-			perror(argv[1]);
-			printf("exiting\n");
+		if ((mainFile = fopen(argv[filePosition], "r")) == NULL) {
+			perror(argv[filePosition]);
+			printf("exiting...\n");
 			return EXIT_FAILURE;
 		}
 	}
-	free(copyOfArgv1);
 
 	fseek(mainFile, 0, SEEK_END);
 	long mainFileSize = ftell(mainFile);
@@ -945,10 +1047,18 @@ int main(int argc, char const *argv[])
 			isCrypting = 0;
 		}
 	}while(isCrypting == -1);
-	
-	printf("Password:");
-	readString(passPhrase, 16383);
-	printf("\033[F\033[J");
+	long size;
+	do{
+		printf("Password:");
+		readString(passPhrase, 16383);
+		size = strlen(passPhrase);
+		if(size <= 0){
+			printf("the password can't be empty\n");
+			continue;
+		}
+		printf("\033[F\033[J");
+	}while(size <= 0);
+	passPhraseSize = strlen(passPhrase);
 	getSeed(passPhrase);
 	scramble(keyFile);
 
@@ -960,6 +1070,12 @@ int main(int argc, char const *argv[])
 	}
 	printf("Done                                                                  \n");
 	fclose(mainFile);
+
+	if(wantsToDeleteFirstFile){
+		if(remove(argv[filePosition]) != 0){
+			perror(argv[filePosition]);
+		}
+	}
 
 	//we can free (last use in code/decode)
 	if(tarName != NULL){
