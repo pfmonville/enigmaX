@@ -693,8 +693,7 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
  */
 void code (FILE* mainFile)
 {
-	int mainFileSize = strlen(fileName);
-	char codedFileName[mainFileSize+1];
+	char codedFileName[strlen(pathToMainFile) + strlen(fileName) + 1];
 	char extractedString[BUFFER_SIZE] = "";
 	char keyString[BUFFER_SIZE] = "";
 	char xoredString[BUFFER_SIZE] = "";
@@ -750,8 +749,7 @@ void code (FILE* mainFile)
  */
 void decode(FILE* mainFile)
 {
-	int mainFileSize = strlen(fileName);
-	char decodedFileName[mainFileSize+1];
+	char decodedFileName[strlen(pathToMainFile) + strlen(fileName) + 1];
 	char extractedString[BUFFER_SIZE] = "";
 	char keyString[BUFFER_SIZE] = "";
 	char xoredString[BUFFER_SIZE] = "";
@@ -761,12 +759,10 @@ void decode(FILE* mainFile)
 	unscramble();
 
 	// naming the file which will be decrypted
-	sprintf(decodedFileName, "x%s", fileName);
-
+	sprintf(decodedFileName, "%sx%s", pathToMainFile, fileName);
 
 	// opening the output file
-	strcat(pathToMainFile, decodedFileName);
-	if ((decodedFile = fopen(pathToMainFile, "w+")) == NULL) {
+	if ((decodedFile = fopen(decodedFileName, "w+")) == NULL) {
 		perror(decodedFileName);
 		printf("exiting...\n");
 		exit(EXIT_FAILURE);
