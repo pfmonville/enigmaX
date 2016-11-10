@@ -700,7 +700,7 @@ void code (FILE* mainFile)
 	char xoredString[BUFFER_SIZE] = "";
 	FILE* codedFile;
 
-	sprintf(codedFileName, "%sx%s", pathToMainFile, fileName);
+	sprintf(codedFileName, "x%s", fileName);
 	// opening the output file
 	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
 		perror(codedFileName);
