@@ -32,7 +32,7 @@
 //			inverts the coding/decoding process, first it xors then it scrambles
 //
 //		-n (normalised) :
-//			normalise the size of the keyFile, improving too short (less secure) or too long (take long time) keyFiles
+//			normalise the size of the keyFile, make its length matching one scrambling cycle
 //
 //		-d (destroy) :
 //			delete the main file at the end of the process
@@ -375,7 +375,7 @@ void getNext255StringFromKeyFile(FILE* keyFile, char* extractedString){
 	keyFile : can be null, if present it passes through all the keyfile to scramble the ascii table
 
 	scramble the ascii table assuring that there is no duplicate
-	inspired by the Enigma machine; switching letters but without its weekness,
+	inspired by the Enigma machine; switching letters but without its weeknesses,
 	here a letter can be switched by itself and it is not possible to know how many letters
 	have been switched
  */
