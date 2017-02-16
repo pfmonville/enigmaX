@@ -43,9 +43,6 @@ write in your ~/.bashrc if you want it to stay after a reboot
 **-h | --help:**
   *further help.*
 
-**-i --inverted :**
-  *inverts the coding/decoding process, first it xors then it scrambles*
-
 **-s (simple):** 
   *put the scrambler off*
 
