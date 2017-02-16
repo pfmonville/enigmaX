@@ -234,21 +234,6 @@ char* processTarString(char* string){
 
 
 /*
-	-static inline uint64_t rotationLinearTransformation(const uint64_t seed, int constant)
-	seed : the seed which will have the rotation
-	constant : number which has to be between 1 and 63
-	returned value :  uint64_t number (equivalent to long long but on all OS)
-
-	rotation function for generateNumber
-	part of the xoroshiro128+ algorythm :
-	http://xoroshiro.di.unimi.it/xoroshiro128plus.c
- */
-static inline uint64_t rotationLinearTransformation(const uint64_t seed, int constant) {
-	return (seed << constant) | (seed >> (64 - constant));
-}
-
-
-/*
 	-uint64_t generateNumber(void)
 	returned value :  uint64_t number (equivalent to long long but on all OS)
 
