@@ -478,8 +478,8 @@ void unscramble(){
 	Apply the mathematical xor function to extractedString and keyString
 	if we are coding (isCrypting == 1) then we switche the character from the source file then xor it
 	if we are decoding (isCrypting == 0) then we xor the character from the source file then unscramble it
-	The scramble table is chosed thanks to the key: We apply a mask to the unique key to catch the last 4 bytes. 
-	it gives a number from 0 to 15 that is used to chose the scrambled table. 
+	The scramble table is chosed thanks to the key. 
+	it gives a number from 0 to 255 that is used to chose the scrambled table. 
 	It prevents a frequence analysis of the scrambled file in the event where the unique key has been found. 
 	Thus even if you find the seed and by extension, the unique key, you can't apply headers and try to match 
 	them to the scrambled file in order to deduce the scramble table. You absolutely need the password.
