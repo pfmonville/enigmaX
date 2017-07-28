@@ -126,7 +126,7 @@ static void usage(int status)
 			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE [KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order.\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s (simple)\tputs the scrambler on off.\n\n\t-i (inverted)\tinverts the coding/decoding process, first it xors then it scrambles.\n\n\t-n (normalised)\tnormalises the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\tdelete the source file at the end of the process\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 4 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -dni file4 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and destroy the source file afterwards(option 'd')\n\n", progName, progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"\nVersion : 3.2\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinverts the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\tdelete the source file afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\n", progName);
+			"\nVersion : 3.3\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinverts the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\tdelete the source file afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\n", progName);
 	}
 	exit(status);
 }
@@ -324,9 +324,9 @@ void getHash(char* output, char* password){
 	this function is here to populate the seed for the PRNG, 
 	it hashes the password then puts the output into the seed array
 */
-void getSeed(char* password){
+void getSeed(){
 	char hash[128];
-	getHash(hash, password);
+	getHash(hash, passPhrase);
 
 	for (int i = 0; i < 16; ++i)
 	{
@@ -803,14 +803,16 @@ void decode(FILE* mainFile)
 	indicates if the object with this path is a directory or not
 
 */
-int isADirectory(char* path){
+int isADirectory(const char* path){
 	struct stat statStruct;
     int statStatus = stat(path, &statStruct);
     if(-1 == statStatus) {
         if(ENOENT == errno) {
             printf("Error : file's path is not correct, one or several directories and or file are missing\n");
+            printf("path given: '%s'\n", path);
         } else {
             perror("stat");
+            printf("path given: '%s'\n", path);
             printf("exiting...\n");
             exit(1);
         }
@@ -827,98 +829,226 @@ int isADirectory(char* path){
     exit(1);
 }
 
+//**********************************************************
+//xoroshiro 128+ to get a random string to fill the password at the end to clean it
+//from this implementation : http://xoroshiro.di.unimi.it/xoroshiro128plus.c
+//**********************************************************
+uint64_t secondarySeed[2];
+
+static inline uint64_t rotl(const uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+
+uint64_t xoroshiro128(void) {
+	const uint64_t s0 = secondarySeed[0];
+	uint64_t s1 = secondarySeed[1];
+	const uint64_t result = s0 + s1;
+
+	s1 ^= s0;
+	secondarySeed[0] = rotl(s0, 55) ^ s1 ^ (s1 << 14); // a, b
+	secondarySeed[1] = rotl(s1, 36); // c
+
+	return result;
+}
+//**********************************************************
 
 
 /*
-	-int main(int argc, char const* argv[])
-	argc : number of arguments passed in the terminal
-	argv : pointer to the arguments passed in the terminal
-	returned value : 0
+	-void getProgName(char* path)
+	path : the raw string from argv[0]
 
- */
-int main(int argc, char const *argv[])
-{
-	FILE* mainFile;
-	FILE* keyFile = NULL;
+	extract the name of the program (usually enigmaX)
 
-	if ((progName = strrchr(argv[0], '/')) != NULL) {
+*/
+void getProgName(char* path){
+	if ((progName = strrchr(path, '/')) != NULL) {
 		++progName;
 	} else {
-		progName = argv[0];
+		progName = path;
 	}
-	if (argc < 2) {
+}
+
+
+/*
+	-void checkArguments(int numberOfArgument, char* secondArgument)
+	numberOfArgument : represents argc, the number of arguments given in the terminal
+	secondArgument : a string reprensenting the argument just after the call of the program
+
+	checks whether the number of arguments is correct or if the user calls for help
+
+*/
+void checkArguments(int numberOfArgument, char* secondArgument){	
+	if (numberOfArgument < 2) {
 		usage(1);
-	} else if(argc >= 5 ) { 
-		printf("Error : Too many arguments\n");
+	} else if(numberOfArgument >= 5 ) { 
+		printf("Error : Too many arguments(%d)\n", numberOfArgument);
 		usage(1);
-	} else if (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0) {
+	} else if (strcmp(secondArgument, "-h") == 0 || strcmp(secondArgument, "--help") == 0) {
 		usage(0);
 	}
+}
 
-	char filePosition = 1;
-	char wantsToDeleteFirstFile = 0;
 
-	if (argc >= 3)
+/*
+	-void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile, char* filePosition, char* wantsToDeleteFirstFile)
+	arguments : this is argv (all the arguments given in terminal)
+	numberOfArgument : this is argc (the number of arguments given in terminal)
+	keyFile : a pointer to the File pointer for the keyFile
+	filePosition : a pointer to the boolean, filePosition
+	wantsToDeleteFirstFile : a pointer to the boolean, wantsToDeleteFirstFile
+
+	checks if all options are correct (no duplicates and no unknowns)
+	displays all warning considering options
+	get the new mainFile position
+	find and try to open the keyFile
+
+*/
+void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile, char* filePosition, char* wantsToDeleteFirstFile){
+	if (numberOfArgument >= 3)
 	{
-		if(argv[1][0] == '-' && strlen(argv[1]) <= 4){
-			if(strchr(argv[1], 's') != NULL){
-				scrambling = 0;
+		char hasOptions = 0;
+		if(arguments[1][0] == '-' && strlen(arguments[1]) <= 5){
+			hasOptions = 1;
+			if(numberOfArgument == 3){
+				FILE* testFile;
+				if((testFile = fopen(arguments[1], "r")) != NULL){
+					char procedureResponse[2];
+					char secondArgumentIsAFile = -1;
+					do{
+						printf("'%s' is a valid file, do you want to treat it as a set of options(o) or a file(F):", arguments[1]);
+						readString(procedureResponse, 2);
+						printf("\033[F\033[J");
+						if (procedureResponse[0] == 'F' || procedureResponse[0] == 'f') {
+							secondArgumentIsAFile = 1;
+							hasOptions = 0;
+						}
+						else if(procedureResponse[0] == 'O' || procedureResponse[0] == 'o'){
+							secondArgumentIsAFile = 0;
+							hasOptions = 1;
+						}
+					}while(secondArgumentIsAFile == -1);
+				}
 			}
-			if(strchr(argv[1], 'i') != NULL){
-				isCodingInverted = 1;
-			}
-			if(strchr(argv[1], 'n') != NULL){
-				normalised = 1;
-			}
-			if(strchr(argv[1], 'd') != NULL){
-				wantsToDeleteFirstFile = 1;
-				printf("Warning : with the option 'd'(delete) the source file will be deleted at the end\n");
-			}
-			if(scrambling && !isCodingInverted && !normalised && !wantsToDeleteFirstFile){
-				printf("Error : no valid option has been found\n");
-				usage(1);
-			} else{
-				filePosition = 2;
-			}
-			if(argc >= 4){
-				if((keyFile = fopen(argv[3], "r")) == NULL){
-					perror(argv[3]);
+			if(hasOptions){
+				char optionS = 0;
+				char optionI = 0;
+				char optionN = 0;
+				char optionD = 0;
+				char several = 0;
+				char other   = 0;
+				char dupChar;
+				for (int i = 1; i < strlen(arguments[1]); ++i){
+					switch(arguments[1][i]){
+						case 's':
+							if(++optionS > 1){
+								several = 1;
+								dupChar = 's';
+							}	
+							scrambling = 0;
+							break;
+						case 'i':
+							if(++optionI > 1){
+								several = 1;
+								dupChar = 'i';
+							}
+							isCodingInverted = 1;
+							break;
+						case 'n':
+							if(++optionN > 1){
+								several = 1;
+								dupChar = 'n';
+							}
+							normalised = 1;
+							break;
+						case 'd':
+							if(++optionD > 1){
+								several = 1;
+								dupChar = 'd';
+							}
+							*wantsToDeleteFirstFile = 1;
+							break;
+						default:
+							other = 1;
+					}
+					if(other){
+						printf("Error: unknown option set '%c'\n", arguments[1][i]);
+						printf("exiting...\n");
+						exit(EXIT_FAILURE);
+					}
+					if(several){
+						printf("Error: an option has been entered several times, '%c'\n", dupChar);
+						printf("exiting...\n");
+						exit(EXIT_FAILURE);
+					}
+				}
+
+				if(!scrambling && isCodingInverted){
+					printf("Error: option 's'(no scrambling) and option 'i'(invert coding/scrambling) cannot be set together\n");
+					printf("exiting...\n");
+					exit(EXIT_FAILURE);
+				}
+
+				if(!scrambling && normalised){
+					printf("Error: option 's'(no scrambling) and option 'n'(normalised scrambler) cannot be set together\n");
+					printf("exiting...\n");
+					exit(EXIT_FAILURE);
+				}
+
+				if(*wantsToDeleteFirstFile){
+					printf("Warning : with the option 'd'(delete) the source file will be deleted at the end\n");
+				}
+
+				if(scrambling && !isCodingInverted && !normalised && !*wantsToDeleteFirstFile){
+					printf("Error : no valid option has been found\n");
+					printf("options given: '%s'\n", arguments[1]);
 					usage(1);
 				}
-				if(keyFile != NULL){
-					if(isADirectory((char*)argv[3])){
-						printf("Warning : the keyfile is a directory and will not be used\n");
-						keyFile = NULL;
-					}else if(!scrambling){
-						printf("Warning : with the option 's'(simple), the keyfile will not bu used\n");
-						keyFile = NULL;
+				//we found correct options so the file is after
+				else{*filePosition = 2;
+				}
+
+				//test if there is a keyFile
+				if(numberOfArgument == 4){
+					if((*keyFile = fopen(arguments[3], "r")) == NULL){
+						perror(arguments[3]);
+						usage(1);
+					}
+					if(*keyFile != NULL){
+						if(isADirectory(arguments[3])){
+							printf("Warning : the keyfile is a directory and will not be used\n");
+							*keyFile = NULL;
+						}else if(!scrambling){
+							printf("Warning : with the option 's'(simple), the keyfile will not be used\n");
+							*keyFile = NULL;
+						}
 					}
 				}
 			}
-		} else if ((keyFile = fopen(argv[2], "r")) == NULL) {
-			perror(argv[2]);
+		} 
+		if (!hasOptions && (*keyFile = fopen(arguments[2], "r")) == NULL) {
+			perror(arguments[2]);
 			usage(1);
-		} else if(keyFile != NULL){
-			if(isADirectory((char*)argv[2])){
+		} else if(!hasOptions && *keyFile != NULL){
+			if(isADirectory(arguments[2])){
 				printf("Warning : the keyfile is a directory and will not be used\n");
-				keyFile = NULL;
+				*keyFile = NULL;
 			}
-			if(argc >= 4){
-				printf("Error : Too many arguments\n");
+			if(numberOfArgument >= 4){
+				printf("Error : Too many arguments(%d)\n", numberOfArgument);
 				usage(1);
 			}
 		}
 
-		if(keyFile != NULL){
+		if(*keyFile != NULL){
 			usingKeyFile = 1;
-			rewind(keyFile);
-			fseek(keyFile, 0, SEEK_END);
-			keyFileSize = ftell(keyFile);
-			rewind(keyFile);
+			rewind(*keyFile);
+			fseek(*keyFile, 0, SEEK_END);
+			keyFileSize = ftell(*keyFile);
+			rewind(*keyFile);
 
 			if(keyFileSize == 0){
 				printf("Warning : the keyFile is empty and thus will not be used\n");
-				keyFile = NULL;
+				*keyFile = NULL;
 				usingKeyFile = 0;
 			}
 		}
@@ -926,57 +1056,69 @@ int main(int argc, char const *argv[])
 			printf("Warning : without the keyFile, the option 'n'(normalised) will be ignored\n");
 			normalised = 0;
 		}
-		
 	}
+}
 
-	if (argv[filePosition][strlen(argv[filePosition])-1] == '/' && argv[filePosition][strlen(argv[filePosition])-2] == '/')
+
+/*
+	-int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath)
+	tarName : a pointer to the name used to tar the mainFile
+	dirName : a pointer to the name of the parent directory of the mainFile
+	mainFile : a pointer to the File pointer for the mainFile
+	filePath : the path of the mainFile
+
+	checks if the mainFile is a directory
+	if it is the case, tries to tar it and open the new tar file as the mainFile
+	otherwise just tries to open the mainFile
+
+*/
+int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath){
+	if (filePath[strlen(filePath)-1] == '/' && filePath[strlen(filePath)-2] == '/')
 	{
 		printf("Error : several trailing '/' in the path of your file\n");
+		printf("path given: '%s'\n", filePath);
 		printf("exiting...\n");
-		exit(1);
+		exit(EXIT_FAILURE);
 	}
 
-	//outside their scope because we need to free them at the end
-	char* tarName = NULL;
-	char* dirName = NULL;
-	if (isADirectory((char*)argv[filePosition])){
+	if (isADirectory(filePath)){
 		char command[1008] = {'\0'};
 		//we don't need that anymore
 		printf("regrouping the folder in one file using tar, may be long...");
 		fflush(stdout);
 		// get the name of the folder in a string and get the path
-		if ((fileName = strrchr(argv[filePosition], '/')) != NULL) {
+		if ((fileName = strrchr(filePath, '/')) != NULL) {
 			//if the '/' is the last character in the string, delete it and get the fileName again
 			if (strlen(fileName) == 1){
-				dirName = (char*) calloc(1, sizeof(char) * (strlen(argv[filePosition]) + 5));
-				strcpy(dirName, argv[filePosition]);
-				*(dirName+(fileName-argv[filePosition])) = '\0';
-				if ((fileName = strrchr(dirName, '/')) != NULL){
+				*dirName = (char*) calloc(1, sizeof(char) * (strlen(filePath) + 5));
+				strcpy(*dirName, filePath);
+				*(*dirName+(fileName-filePath)) = '\0';
+				if ((fileName = strrchr(*dirName, '/')) != NULL){
 					++fileName;
-					strncpy(pathToMainFile, dirName, fileName - dirName);
-					pathToMainFile[fileName - dirName] = '\0';
+					strncpy(pathToMainFile, *dirName, fileName - *dirName);
+					pathToMainFile[fileName - *dirName] = '\0';
 				}
 				else{
-					fileName = dirName;
+					fileName = *dirName;
 				}
 			}
 			else {
 				++fileName;
-				strncpy(pathToMainFile, argv[filePosition], fileName - argv[filePosition]);
-				pathToMainFile[fileName - argv[filePosition]] = '\0';
+				strncpy(pathToMainFile, filePath, fileName - filePath);
+				pathToMainFile[fileName - filePath] = '\0';
 			}
 		}
 		else {
-			fileName = argv[filePosition];
+			fileName = filePath;
 		}
 		// get the full path of the tarFile in a dynamic variable tarName
-		tarName = (char*) calloc(1, sizeof(char) * (strlen(fileName) + 5));
-		sprintf (tarName, "%s.tar", fileName);
+		*tarName = (char*) calloc(1, sizeof(char) * (strlen(fileName) + 5));
+		sprintf (*tarName, "%s.tar", fileName);
 
 		//all of the following is to make a clean string for the tar commands (taking care of spaces)
 		char* cleanFileName       = processTarString((char*)fileName);
 		char* cleanPathToMainFile = processTarString(pathToMainFile);
-		char* cleanTarName        = processTarString(tarName);
+		char* cleanTarName        = processTarString(*tarName);
 		
 		// use of cd to prevent tar to archive all the path architecture 
 		// (ex: /usr/myname/my/path/theFolderWeWant/)
@@ -997,32 +1139,44 @@ int main(int argc, char const *argv[])
 			printf("\rregrouping the folder in one file using tar... Done          \n");			
 		}
 
-		fileName = tarName;
+		fileName = *tarName;
 
 		// trying to open the new archive
 		char pathPlusName[strlen(pathToMainFile)+strlen(fileName)];
 		sprintf(pathPlusName, "%s%s", pathToMainFile, fileName);
-		if ((mainFile = fopen(pathPlusName, "r")) == NULL) {
+		if ((*mainFile = fopen(pathPlusName, "r")) == NULL) {
 			perror(pathPlusName);
 			printf("exiting...\n");
 			return EXIT_FAILURE;
 		}
 	}
 	else{
-		if ((fileName = strrchr(argv[filePosition], '/')) != NULL) {
+		if ((fileName = strrchr(filePath, '/')) != NULL) {
 			++fileName;
-			strncpy(pathToMainFile, argv[filePosition], fileName - argv[filePosition]);		
+			strncpy(pathToMainFile, filePath, fileName - filePath);		
 		} else {
-			fileName = argv[filePosition];
+			fileName = filePath;
 		}
-		if ((mainFile = fopen(argv[filePosition], "r")) == NULL) {
-			perror(argv[filePosition]);
+		if ((*mainFile = fopen(filePath, "r")) == NULL) {
+			perror(filePath);
 			printf("exiting...\n");
 			return EXIT_FAILURE;
 		}
 	}
+}
 
+
+/*
+	-void getNumberOfBuffer(FILE* mainFile)
+	mainFile : the mainFile
+	
+	calculates the number of buffer needed in order to complete 
+	the main process on the mainFile
+
+*/
+void getNumberOfBuffer(FILE* mainFile){
 	fseek(mainFile, 0, SEEK_END);
+	fflush(stdout);
 	long mainFileSize = ftell(mainFile);
 	rewind(mainFile);
 	numberOfBuffer = ceilRound((float)mainFileSize / (float)(BUFFER_SIZE));
@@ -1030,7 +1184,17 @@ int main(int argc, char const *argv[])
 	{
 		numberOfBuffer = 1;
 	}
+}
 
+
+/*
+	-void getUserPrompt()
+
+	Asks the user what he wants to do 
+	and asks for the password
+
+*/
+void getUserPrompt(){
 	char procedureResponse[2]; 
 	isCrypting = -1;
 	do{
@@ -1047,7 +1211,7 @@ int main(int argc, char const *argv[])
 	long size;
 	do{
 		printf("Password:");
-		readString(passPhrase, 16383);
+		readString(passPhrase, 16384);
 		size = strlen(passPhrase);
 		if(size <= 0){
 			printf("the password can't be empty\n");
@@ -1056,9 +1220,21 @@ int main(int argc, char const *argv[])
 		printf("\033[F\033[J");
 	}while(size <= 0);
 	passPhraseSize = strlen(passPhrase);
-	getSeed(passPhrase);
-	scramble(keyFile);
+}
 
+
+
+/*
+	-void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char* fileToDelete)
+	mainFile : the mainFile
+	wantsToDeleteFirstFile : a boolean that indicates if the user wants to delete the source file afterwards
+	fileToDelete : the path of the source file in case of deletion
+	
+	Launches the coding or decoding process 
+	and deletes the source file if the user wants so
+
+*/
+void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char* fileToDelete){
 	if (isCrypting){
 		code(mainFile);
 	}
@@ -1066,21 +1242,81 @@ int main(int argc, char const *argv[])
 		decode(mainFile);
 	}
 	printf("Done                                                                  \n");
+	fflush(stdout);
 	fclose(mainFile);
 
 	if(wantsToDeleteFirstFile){
-		if(remove(argv[filePosition]) != 0){
-			perror(argv[filePosition]);
+		if(remove(fileToDelete) != 0){
+			perror(fileToDelete);
 		}
 	}
+}
 
-	//we can free (last use in code/decode)
+
+
+/*
+	-void clean(char* tarName, char* dirName)
+	tarName : the string used to name the tarFile from the mainFile
+	dirName : the string used to store the path of the parent directory of the mainFile
+
+	writes in the passPhrase emplacement random informations, 
+	so the password is not retrievable from RAM after the program ends
+	free tarName and dirName variables
+
+*/
+void clean(char* tarName, char* dirName){
+	printf("cleaning buffers and ram... ");
+	secondarySeed[0] = time(NULL);
+	secondarySeed[1] = secondarySeed[0] >> 1;
+	for (int i = 0; i < passPhraseSize; i++)
+	{
+		passPhrase[i] = (char) xoroshiro128();
+	}
+
 	if(tarName != NULL){
 		free(tarName);
 	}
 	if(dirName != NULL){
 		free(dirName);
 	}
+	printf("Done\n");
+}
+
+
+
+/*
+	-int main(int argc, char const* argv[])
+	argc : number of arguments passed in the terminal
+	argv : pointer to the arguments passed in the terminal
+	returned value : 0
+
+ */
+int main(int argc, char const *argv[])
+{
+	FILE* mainFile;
+	FILE* keyFile = NULL;
+	char filePosition = 1;
+	char wantsToDeleteFirstFile = 0;
+	//outside their scope because we need to free them at the end
+	char* tarName = NULL;
+	char* dirName = NULL;
+
+	getProgName((char*)argv[0]);
+	checkArguments(argc, (char*)argv[1]);
+	getOptionsAndKeyFile((char**)argv, argc, &keyFile, &filePosition, &wantsToDeleteFirstFile);
+	prepareAndOpenMainFile(&tarName, &dirName, &mainFile, (char*)argv[filePosition]);
+	getNumberOfBuffer(mainFile);
+
+	getUserPrompt();	
+	
+	getSeed();
+	scramble(keyFile);
+	startMainProcess(mainFile, wantsToDeleteFirstFile, (char*)argv[filePosition]);
+	
+	//avoid the password to be stored in ram
+	clean(tarName, dirName);
+
+	printf("\n");
 
 	return EXIT_SUCCESS;
 }
