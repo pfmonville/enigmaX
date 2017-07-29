@@ -126,7 +126,7 @@ static void usage(int status)
 			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE [KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order.\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s (simple)\tputs the scrambler on off.\n\n\t-i (inverted)\tinverts the coding/decoding process, first it xors then it scrambles.\n\n\t-n (normalised)\tnormalises the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\tdelete the source file at the end of the process\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 4 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -dni file4 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and destroy the source file afterwards(option 'd')\n\n", progName, progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"\nVersion : 3.3\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinverts the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\tdelete the source file afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\n", progName);
+			"\nVersion : 3.3.1\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinverts the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\tdelete the source file afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\n", progName);
 	}
 	exit(status);
 }
@@ -1072,7 +1072,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 	otherwise just tries to open the mainFile
 
 */
-int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath){
+void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath){
 	if (filePath[strlen(filePath)-1] == '/' && filePath[strlen(filePath)-2] == '/')
 	{
 		printf("Error : several trailing '/' in the path of your file\n");
@@ -1147,7 +1147,7 @@ int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, cons
 		if ((*mainFile = fopen(pathPlusName, "r")) == NULL) {
 			perror(pathPlusName);
 			printf("exiting...\n");
-			return EXIT_FAILURE;
+			exit(EXIT_FAILURE);
 		}
 	}
 	else{
@@ -1160,7 +1160,7 @@ int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, cons
 		if ((*mainFile = fopen(filePath, "r")) == NULL) {
 			perror(filePath);
 			printf("exiting...\n");
-			return EXIT_FAILURE;
+			exit(EXIT_FAILURE);
 		}
 	}
 }
