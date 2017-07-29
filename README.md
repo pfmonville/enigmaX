@@ -35,7 +35,7 @@ Or you can make an alias
 ```
 alias enigmax='PATH/TO/enigmax'
 ```
-write one of them in your ~/.bashrc if you want it to stay after a reboot
+write one of them in your ~/.bashrc(linux) or ~/.bash_profile(mac) if you want it to stay after a reboot
 
 ## Usage :
 
