@@ -1,13 +1,14 @@
 // Copyright <Pierre-François Monville>
 // ===========================================================================
 // 									enigmaX
-// permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. 
+// Permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. 
 // Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). 
 // Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. 
 // La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). 
-// Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, 
+// Le fichier subit un xor avec cette nouvelle clé, puis un brouilleur est utilisé. 
 // il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 
-// 256 tables de brouillages sont utilisées au total dans un ordre non prédictible.
+// 256 tables de brouillages sont utilisées au total dans un ordre non prédictible donné par la clé unique combiné 
+// avec le keyfile s'il est fournit.
 //
 // Can crypt and decrypt any data given in argument. 
 // The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). 
@@ -15,7 +16,8 @@
 // The key is xored with the password (the password is repeated as long as necessary). 
 // The file is then xored with this new key, then a scrambler is used. 
 // It scrambles the ascii table using the PRNG and the keyfile if it is given. 
-// 256 scramble's tables are used in an unpredictible order.
+// 256 scramble's tables are used in an unpredictible order given by the unique key combined with 
+// the keyfile if present.
 //
 // USAGE : 
 //		enigmax [options] FILE [KEYFILE]
@@ -29,13 +31,13 @@
 // 	 		put the scrambler off
 //
 //		-i (inverted) :
-//			inverts the coding/decoding process, first it xors then it scrambles
+//			invert the coding/decoding process, first it xors then it scrambles
 //
 //		-n (normalised) :
 //			normalise the size of the keyFile, make its length matching one scrambling cycle
 //
 //		-d (destroy) :
-//			delete the source file at the end of the process
+//			write on top of the source file (except folder they are deleted at the end)
 //
 // 		-h --help : 
 // 			further help
@@ -78,6 +80,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <ftw.h>
 #include <errno.h>
 
 
@@ -85,6 +88,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 	constants
  */
 #define BUFFER_SIZE 16384  //16384 //8192
+#define _XOPEN_SOURCE 500 //to use extra function used by X/OPEN and POSIX, here nftw, "500 - X/Open 5, incorporating POSIX 1995"
 
 
 /*
@@ -123,10 +127,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"%s(1)\t\t\tcopyright <Pierre-François Monville>\t\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE [KEYFILE]\n\nDESCRIPTION\n\t(FR) permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order.\n\nOPTIONS\n\tthe options are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s (simple)\tputs the scrambler on off.\n\n\t-i (inverted)\tinverts the coding/decoding process, first it xors then it scrambles.\n\n\t-n (normalised)\tnormalises the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\tdelete the source file at the end of the process\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 4 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -dni file4 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and destroy the source file afterwards(option 'd')\n\n", progName, progName, progName, progName, progName, progName, progName, progName, progName);
+			"%s(1)\t\tcopyright <Pierre-François Monville>\t\t%s(1)\n\nNAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE [KEYFILE]\n\nDESCRIPTION\n\t(FR) Permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette nouvelle clé, puis un brouilleur est utilisé. il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible donné par la clé unique combiné avec le keyfile s'il est fournit.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order given by the unique key combined with the keyfile if present.\n\nOPTIONS\n\toptions are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s (simple)\tput the scrambler on off.\n\n\t-i (inverted)\tinvert the coding/decoding process, for coding it xors then scrambles and for decoding it scrambles then xors.\n\n\t-n (normalised)\tnormalise the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\twrite on top of the source file(securely erase source data), except when the source is a folder where it's just deleted by the system at the end)\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 16 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -dni file4 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and write on top of the source file(option 'd')\n\n", progName, progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"\nVersion : 3.3.1\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinverts the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\tdelete the source file afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\n", progName);
+			"\n%s -- crypt or decrypt any data\n\nVersion : 3.4\n\nUsage : %s [options] FILE [KEYFILE]\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinvert the coding/decoding process\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\toverwrite source file or delete source folder afterwards\n\nFILE :\t\t\tpath to the file\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\n", progName, progName);
 	}
 	exit(status);
 }
@@ -252,6 +256,32 @@ uint64_t generateNumber(void) {
 
 	return seed[seedIndex] * UINT64_C(1181783497276652981);
 }
+
+
+
+//**********************************************************
+//xoroshiro 128+ to get a random string to fill the password at the end to clean it
+//from this implementation : http://xoroshiro.di.unimi.it/xoroshiro128plus.c
+//**********************************************************
+uint64_t secondarySeed[2];
+
+static inline uint64_t rotl(const uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+
+uint64_t xoroshiro128(void) {
+	const uint64_t s0 = secondarySeed[0];
+	uint64_t s1 = secondarySeed[1];
+	const uint64_t result = s0 + s1;
+
+	s1 ^= s0;
+	secondarySeed[0] = rotl(s0, 55) ^ s1 ^ (s1 << 14); // a, b
+	secondarySeed[1] = rotl(s1, 36); // c
+
+	return result;
+}
+//**********************************************************
+
 
 
 /*
@@ -692,7 +722,7 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 
 	Controller for coding the source file
  */
-void code (FILE* mainFile)
+void code (FILE* mainFile, char wantsToDeleteFirstFile)
 {
 	char codedFileName[strlen(pathToMainFile) + strlen(fileName) + 1];
 	char extractedString[BUFFER_SIZE] = "";
@@ -702,42 +732,70 @@ void code (FILE* mainFile)
 
 	sprintf(codedFileName, "%sx%s", pathToMainFile, fileName);
 	// opening the output file
-	if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
+	if(wantsToDeleteFirstFile){
+		codedFile = mainFile;
+	}else if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
 		perror(codedFileName);
 		printf("exiting...\n");
 		exit(EXIT_FAILURE);
 	}
 
 	// starting encryption
-	long bufferCount = 0; //keep trace of the task's completion
 	printf("starting encryption...\n");
+	long bufferCount = 0; //keep trace of the task's completion
 	if (scrambling){
-		while(!feof(mainFile))
-		{
-			int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-			codingXOR(extractedString, keyString, xoredString, bufferLength);
-			fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-			loadBar(++bufferCount, numberOfBuffer, 100, 50);
+		if(wantsToDeleteFirstFile){
+			for(;;)
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				if(bufferLength == 0){
+						break;
+				}else{
+					//writing on the same file so get the cursor where it starts reading the buffer
+					fseek(codedFile, -bufferLength, SEEK_CUR);
+				}
+				codingXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
+		}else{
+			while(!feof(mainFile))
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				codingXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
 		}
 	} else {
-		while(!feof(mainFile))
-		{
-			int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-			standardXOR(extractedString, keyString, xoredString, bufferLength);
-			fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-			loadBar(++bufferCount, numberOfBuffer, 100, 50);
+		if(wantsToDeleteFirstFile){
+			for(;;)
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				if(bufferLength == 0){
+						break;
+				}else{
+					//writing on the same file so get the cursor where it starts reading the buffer
+					fseek(codedFile, -bufferLength, SEEK_CUR);
+				}
+				standardXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
+		}else{
+			while(!feof(mainFile))
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				standardXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
 		}
 	}
-	// closing the output file
-	fclose(codedFile);
-	//if the first file was a directory then delete the archive made before crypting
-	if (_isADirectory)
-	{
-		char* tarFile = (char*) calloc (1, sizeof(char) * (strlen(pathToMainFile) + strlen(fileName) + 1));
-		strcpy(tarFile, pathToMainFile);
-		strcat(tarFile, fileName);
-		remove(tarFile);
-		free(tarFile);
+
+	//we close the coded file only if we don't write on top of the source file
+	if(!wantsToDeleteFirstFile){
+		fclose(codedFile);
 	}
 }
 
@@ -748,7 +806,7 @@ void code (FILE* mainFile)
 
 	controller for decoding the source file
  */
-void decode(FILE* mainFile)
+void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 {
 	char decodedFileName[strlen(pathToMainFile) + strlen(fileName) + 1];
 	char extractedString[BUFFER_SIZE] = "";
@@ -763,34 +821,73 @@ void decode(FILE* mainFile)
 	sprintf(decodedFileName, "%sx%s", pathToMainFile, fileName);
 
 	// opening the output file
-	if ((decodedFile = fopen(decodedFileName, "w+")) == NULL) {
+	if(wantsToDeleteFirstFile){
+		decodedFile = mainFile;
+	}
+	else if ((decodedFile = fopen(decodedFileName, "w+")) == NULL) {
 		perror(decodedFileName);
 		printf("exiting...\n");
 		exit(EXIT_FAILURE);
 	}
 
 	// starting decryption
-	long bufferCount = 0; //keep trace of the task's completion
 	printf("starting decryption...\n");
+	long bufferCount = 0; //keep trace of the task's completion
 	if(scrambling){
-		while(!feof(mainFile))
-		{
-			int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-			decodingXOR(extractedString, keyString, xoredString, bufferLength);
-			fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-			loadBar(++bufferCount, numberOfBuffer, 100, 50);
+		if(wantsToDeleteFirstFile){
+			for(;;)
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				if(bufferLength == 0){
+						break;
+				}else{
+					//writing on the same file so get the cursor where it starts reading the buffer
+					fseek(decodedFile, -bufferLength, SEEK_CUR);
+				}
+				decodingXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
+		}else{
+			while(!feof(mainFile))
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				decodingXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
 		}
 	} else {
-		while(!feof(mainFile))
-		{
-			int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-			standardXOR(extractedString, keyString, xoredString, bufferLength);
-			fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-			loadBar(++bufferCount, numberOfBuffer, 100, 50);
+		if(wantsToDeleteFirstFile){
+			for(;;)
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				if(bufferLength == 0){
+						break;
+				}else{
+					//writing on the same file so get the cursor where it starts reading the buffer
+					fseek(decodedFile, -bufferLength, SEEK_CUR);
+				}
+				standardXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
+		}else{
+			while(!feof(mainFile))
+			{
+				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
+				standardXOR(extractedString, keyString, xoredString, bufferLength);
+				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+			}
 		}
 	}
-	// closing the output file
-	fclose(decodedFile);
+
+
+	//we close the decoded file only if we don't write on top of the source file
+	if(!wantsToDeleteFirstFile){
+		fclose(decodedFile);
+	}
 }
 
 
@@ -814,7 +911,7 @@ int isADirectory(const char* path){
             perror("stat");
             printf("path given: '%s'\n", path);
             printf("exiting...\n");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     } else {
         if(S_ISDIR(statStruct.st_mode)) {
@@ -826,31 +923,8 @@ int isADirectory(const char* path){
         }
     }
     printf("exiting...\n");
-    exit(1);
+    exit(EXIT_FAILURE);
 }
-
-//**********************************************************
-//xoroshiro 128+ to get a random string to fill the password at the end to clean it
-//from this implementation : http://xoroshiro.di.unimi.it/xoroshiro128plus.c
-//**********************************************************
-uint64_t secondarySeed[2];
-
-static inline uint64_t rotl(const uint64_t x, int k) {
-	return (x << k) | (x >> (64 - k));
-}
-
-uint64_t xoroshiro128(void) {
-	const uint64_t s0 = secondarySeed[0];
-	uint64_t s1 = secondarySeed[1];
-	const uint64_t result = s0 + s1;
-
-	s1 ^= s0;
-	secondarySeed[0] = rotl(s0, 55) ^ s1 ^ (s1 << 14); // a, b
-	secondarySeed[1] = rotl(s1, 36); // c
-
-	return result;
-}
-//**********************************************************
 
 
 /*
@@ -903,7 +977,7 @@ void checkArguments(int numberOfArgument, char* secondArgument){
 	find and try to open the keyFile
 
 */
-void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile, char* filePosition, char* wantsToDeleteFirstFile){
+void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile, unsigned char* filePosition, unsigned char* wantsToDeleteFirstFile){
 	if (numberOfArgument >= 3)
 	{
 		char hasOptions = 0;
@@ -995,7 +1069,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 				}
 
 				if(*wantsToDeleteFirstFile){
-					printf("Warning : with the option 'd'(delete) the source file will be deleted at the end\n");
+					printf("Warning : with the option 'd'(delete) the source file will be overwritten. Do not quit during encryption\n");
 				}
 
 				if(scrambling && !isCodingInverted && !normalised && !*wantsToDeleteFirstFile){
@@ -1009,7 +1083,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 
 				//test if there is a keyFile
 				if(numberOfArgument == 4){
-					if((*keyFile = fopen(arguments[3], "r")) == NULL){
+					if((*keyFile = fopen(arguments[3], "rb")) == NULL){
 						perror(arguments[3]);
 						usage(1);
 					}
@@ -1025,7 +1099,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 				}
 			}
 		} 
-		if (!hasOptions && (*keyFile = fopen(arguments[2], "r")) == NULL) {
+		if (!hasOptions && (*keyFile = fopen(arguments[2], "rb")) == NULL) {
 			perror(arguments[2]);
 			usage(1);
 		} else if(!hasOptions && *keyFile != NULL){
@@ -1072,7 +1146,16 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 	otherwise just tries to open the mainFile
 
 */
-void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath){
+void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath, char wantsToDeleteFirstFile){
+	char openType[4] = "";
+
+	if (wantsToDeleteFirstFile)
+	{
+		strcpy(openType, "rb+");
+	}else{
+		strcpy(openType, "rb");
+	}
+
 	if (filePath[strlen(filePath)-1] == '/' && filePath[strlen(filePath)-2] == '/')
 	{
 		printf("Error : several trailing '/' in the path of your file\n");
@@ -1134,9 +1217,10 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 		if((status = system(command)) != 0){ //if problems when taring
 			printf("\nError : unable to tar your file\n");
 			printf("exiting...\n");
-			exit(1);
+			exit(EXIT_FAILURE);
 		}else{
-			printf("\rregrouping the folder in one file using tar... Done          \n");			
+			printf("\rregrouping the folder in one file using tar... Done          \n");
+			fflush(stdout);			
 		}
 
 		fileName = *tarName;
@@ -1144,7 +1228,7 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 		// trying to open the new archive
 		char pathPlusName[strlen(pathToMainFile)+strlen(fileName)];
 		sprintf(pathPlusName, "%s%s", pathToMainFile, fileName);
-		if ((*mainFile = fopen(pathPlusName, "r")) == NULL) {
+		if ((*mainFile = fopen(pathPlusName, openType)) == NULL) {
 			perror(pathPlusName);
 			printf("exiting...\n");
 			exit(EXIT_FAILURE);
@@ -1157,7 +1241,7 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 		} else {
 			fileName = filePath;
 		}
-		if ((*mainFile = fopen(filePath, "r")) == NULL) {
+		if ((*mainFile = fopen(filePath, openType)) == NULL) {
 			perror(filePath);
 			printf("exiting...\n");
 			exit(EXIT_FAILURE);
@@ -1225,31 +1309,62 @@ void getUserPrompt(){
 
 
 /*
-	-void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char* fileToDelete)
+	-void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile)
 	mainFile : the mainFile
 	wantsToDeleteFirstFile : a boolean that indicates if the user wants to delete the source file afterwards
-	fileToDelete : the path of the source file in case of deletion
 	
 	Launches the coding or decoding process 
 	and deletes the source file if the user wants so
 
 */
-void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char* fileToDelete){
+void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile){
 	if (isCrypting){
-		code(mainFile);
+		code(mainFile, wantsToDeleteFirstFile);
 	}
 	else{
-		decode(mainFile);
+		decode(mainFile, wantsToDeleteFirstFile);
 	}
 	printf("Done                                                                  \n");
 	fflush(stdout);
 	fclose(mainFile);
+}
 
-	if(wantsToDeleteFirstFile){
-		if(remove(fileToDelete) != 0){
-			perror(fileToDelete);
-		}
-	}
+
+
+/*
+	-int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+	fpath : the string path of the file or empty folder
+	sb : necessary to be a callback function for nftw
+	typeflag : necessary to be a callback function for nftw
+	ftwbuf : necessary to be a callback function for nftw
+	return int 0 on success -1 otherwise
+
+	remove the file or the empty directory from system
+
+ */
+int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+    int rv = remove(fpath);
+
+    if (rv)
+        perror(fpath);
+
+    return rv;
+}
+
+
+
+/*
+	-int rmrf(char *path)
+	path : the string path of the folder
+	return int 0 if success -1 otherwise
+
+	delete a folder and any file/folder in it using nftw function and the function unlink_cb()
+
+ */
+int rmrf(char *path)
+{
+    return nftw(path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
 }
 
 
@@ -1264,7 +1379,7 @@ void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char* fileToD
 	free tarName and dirName variables
 
 */
-void clean(char* tarName, char* dirName){
+void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirstFile, char* filePath){
 	printf("cleaning buffers and ram... ");
 	secondarySeed[0] = time(NULL);
 	secondarySeed[1] = secondarySeed[0] >> 1;
@@ -1273,12 +1388,46 @@ void clean(char* tarName, char* dirName){
 		passPhrase[i] = (char) xoroshiro128();
 	}
 
+	char mainFileString[strlen(pathToMainFile) + strlen(fileName) + 1];
+	sprintf(mainFileString, "%s%s", pathToMainFile, fileName);
+	//if we write on top of source file, we rename the source file so it's not confusing
+	if(wantsToDeleteFirstFile){
+		char outputFileString[strlen(mainFileString) + 1];
+		sprintf(outputFileString, "%sx%s", pathToMainFile, fileName);
+		rename(mainFileString, (const char*)outputFileString);
+	}else if(_isADirectory){
+			//we have to securely delete the archive file used to crypt the folder
+			//put random char in the file then remove it
+			rewind(mainFile);
+			for(int i = 0; i < numberOfBuffer; i++)
+			{
+				char buffer[BUFFER_SIZE];
+				//fill a buffer
+				for(int j = 0; j < BUFFER_SIZE; j++){
+					buffer[j] = (char) xoroshiro128();
+				}
+				//put buffer in filePath
+				fwrite(buffer, sizeof(char), BUFFER_SIZE, mainFile);
+			}
+			fclose(mainFile);
+			remove((const char*)mainFileString);
+	}
+
 	if(tarName != NULL){
 		free(tarName);
 	}
 	if(dirName != NULL){
 		free(dirName);
 	}
+	if(_isADirectory && wantsToDeleteFirstFile){
+		//not secure removal but it's the best we can do so far with folders
+		if(rmrf(filePath) != 0){
+			//error
+			printf("Error: the source file (folder) were not completely deleted\n");
+			fflush(stdout);
+		}
+	}
+
 	printf("Done\n");
 }
 
@@ -1295,8 +1444,8 @@ int main(int argc, char const *argv[])
 {
 	FILE* mainFile;
 	FILE* keyFile = NULL;
-	char filePosition = 1;
-	char wantsToDeleteFirstFile = 0;
+	unsigned char filePosition = 1;
+	unsigned char wantsToDeleteFirstFile = 0;
 	//outside their scope because we need to free them at the end
 	char* tarName = NULL;
 	char* dirName = NULL;
@@ -1304,17 +1453,17 @@ int main(int argc, char const *argv[])
 	getProgName((char*)argv[0]);
 	checkArguments(argc, (char*)argv[1]);
 	getOptionsAndKeyFile((char**)argv, argc, &keyFile, &filePosition, &wantsToDeleteFirstFile);
-	prepareAndOpenMainFile(&tarName, &dirName, &mainFile, (char*)argv[filePosition]);
+	prepareAndOpenMainFile(&tarName, &dirName, &mainFile, (char*)argv[filePosition], wantsToDeleteFirstFile);
 	getNumberOfBuffer(mainFile);
 
 	getUserPrompt();	
 	
 	getSeed();
 	scramble(keyFile);
-	startMainProcess(mainFile, wantsToDeleteFirstFile, (char*)argv[filePosition]);
+	startMainProcess(mainFile, wantsToDeleteFirstFile);
 	
 	//avoid the password to be stored in ram
-	clean(tarName, dirName);
+	clean(mainFile, tarName, dirName, wantsToDeleteFirstFile, (char*)argv[filePosition]);
 
 	printf("\n");
 
