@@ -67,6 +67,15 @@ export PATH=$PATH:/PATH/TO/enigmax
 write it in your ~/.bashrc if you want it to stay after a reboot
 */
 
+
+/*
+	constants
+ */
+#define BUFFER_SIZE 16384  //16384 //8192
+#define _XOPEN_SOURCE 500 //to use extra function used by X/OPEN and POSIX, here nftw, "500 - X/Open 5, incorporating POSIX 1995"
+
+
+
 /*
 	includes
  */
@@ -82,13 +91,6 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 #include <unistd.h>
 #include <ftw.h>
 #include <errno.h>
-
-
-/*
-	constants
- */
-#define BUFFER_SIZE 16384  //16384 //8192
-#define _XOPEN_SOURCE 500 //to use extra function used by X/OPEN and POSIX, here nftw, "500 - X/Open 5, incorporating POSIX 1995"
 
 
 /*
