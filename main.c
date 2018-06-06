@@ -747,15 +747,11 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 	long bufferCount = 0; //keep trace of the task's completion
 	if (scrambling){
 		if(wantsToDeleteFirstFile){
-			for(;;)
+			for(int i = 0; i < numberOfBuffer; i++)
 			{
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-				if(bufferLength == 0){
-						break;
-				}else{
-					//writing on the same file so get the cursor where it starts reading the buffer
-					fseek(codedFile, -bufferLength, SEEK_CUR);
-				}
+				//writing on the same file so get the cursor where it starts reading the buffer
+				fseek(codedFile, -bufferLength, SEEK_CUR);
 				codingXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
 				loadBar(++bufferCount, numberOfBuffer, 100, 50);
@@ -771,15 +767,11 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 		}
 	} else {
 		if(wantsToDeleteFirstFile){
-			for(;;)
+			for(int i = 0; i < numberOfBuffer; i++)
 			{
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-				if(bufferLength == 0){
-						break;
-				}else{
-					//writing on the same file so get the cursor where it starts reading the buffer
-					fseek(codedFile, -bufferLength, SEEK_CUR);
-				}
+				//writing on the same file so get the cursor where it starts reading the buffer
+				fseek(codedFile, -bufferLength, SEEK_CUR);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
 				loadBar(++bufferCount, numberOfBuffer, 100, 50);
@@ -837,15 +829,11 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 	long bufferCount = 0; //keep trace of the task's completion
 	if(scrambling){
 		if(wantsToDeleteFirstFile){
-			for(;;)
+			for(int i = 0; i < numberOfBuffer; i++)
 			{
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-				if(bufferLength == 0){
-						break;
-				}else{
-					//writing on the same file so get the cursor where it starts reading the buffer
-					fseek(decodedFile, -bufferLength, SEEK_CUR);
-				}
+				//writing on the same file so get the cursor where it starts reading the buffer
+				fseek(decodedFile, -bufferLength, SEEK_CUR);
 				decodingXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
 				loadBar(++bufferCount, numberOfBuffer, 100, 50);
@@ -861,15 +849,11 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 		}
 	} else {
 		if(wantsToDeleteFirstFile){
-			for(;;)
+			for(int i = 0; i < numberOfBuffer; i++)
 			{
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-				if(bufferLength == 0){
-						break;
-				}else{
-					//writing on the same file so get the cursor where it starts reading the buffer
-					fseek(decodedFile, -bufferLength, SEEK_CUR);
-				}
+				//writing on the same file so get the cursor where it starts reading the buffer
+				fseek(decodedFile, -bufferLength, SEEK_CUR);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
 				loadBar(++bufferCount, numberOfBuffer, 100, 50);
