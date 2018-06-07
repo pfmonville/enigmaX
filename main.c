@@ -256,7 +256,7 @@ uint64_t generateNumber(void) {
 	seed1 ^= seed1 << 31; // a
 	seed[seedIndex] = seed1 ^ seed0 ^ (seed1 >> 11) ^ (seed0 >> 30); // b,c
 
-	return seed[seedIndex] * UINT64_C(1181783497276652981);
+	return seed[seedIndex] * 0x9e3779b97f4a7c13;
 }
 
 
