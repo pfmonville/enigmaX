@@ -1188,7 +1188,7 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 		char* cleanFileName       = processTarString((char*)fileName);
 		char* cleanPathToMainFile = processTarString(pathToMainFile);
 		char* cleanTarName        = processTarString(*tarName);
-		
+
 		// use of cd to prevent tar to archive all the path architecture 
 		// (ex: /usr/myname/my/path/theFolderWeWant/)
 		sprintf (command, "cd %s && tar -cf %s %s &>/dev/null", cleanPathToMainFile, cleanTarName, cleanFileName); //&>/dev/null
@@ -1210,6 +1210,9 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 		}
 
 		fileName = *tarName;
+
+		// pause to let the system register the archive
+		sleep(1);
 
 		// trying to open the new archive
 		char pathPlusName[strlen(pathToMainFile)+strlen(fileName)];
@@ -1312,7 +1315,9 @@ void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile){
 	}
 	printf("Done                                                                  \n");
 	fflush(stdout);
-	fclose(mainFile);
+	if(!_isADirectory){
+		fclose(mainFile);
+	}
 }
 
 
@@ -1367,6 +1372,7 @@ int rmrf(char *path)
 */
 void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirstFile, char* filePath){
 	printf("cleaning buffers and ram... ");
+	fflush(stdout);
 	secondarySeed[0] = time(NULL);
 	secondarySeed[1] = secondarySeed[0] >> 1;
 	for (int i = 0; i < passPhraseSize; i++)
@@ -1382,8 +1388,8 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 		sprintf(outputFileString, "%sx%s", pathToMainFile, fileName);
 		rename(mainFileString, (const char*)outputFileString);
 	}else if(_isADirectory){
-			//we have to securely delete the archive file used to crypt the folder
-			//put random char in the file then remove it
+			// we have to securely delete the archive file used to crypt the folder
+			// put random char in the file then remove it
 			rewind(mainFile);
 			for(int i = 0; i < numberOfBuffer; i++)
 			{
@@ -1398,7 +1404,6 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 			fclose(mainFile);
 			remove((const char*)mainFileString);
 	}
-
 	if(tarName != NULL){
 		free(tarName);
 	}
@@ -1447,7 +1452,6 @@ int main(int argc, char const *argv[])
 	getSeed();
 	scramble(keyFile);
 	startMainProcess(mainFile, wantsToDeleteFirstFile);
-	
 	//avoid the password to be stored in ram
 	clean(mainFile, tarName, dirName, wantsToDeleteFirstFile, (char*)argv[filePosition]);
 
