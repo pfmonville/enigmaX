@@ -17,12 +17,17 @@ it scrambles the ascii table using the PRNG or the keyFile given.
 
 
 ## Installation
-MAC:
+**MAC**:
 ```
 clang -Ofast -fno-unroll-loops main.c -o enigmax
 ```
 
-LINUX:
+**LINUX**:
+```
+gcc -fno-move-loop-invariants -fno-unroll-loops main.c -std='c11' -o enigmax
+```
+
+**WINDOWS** (with BASH for windows only):
 ```
 gcc -fno-move-loop-invariants -fno-unroll-loops main.c -std='c11' -o enigmax
 ```
