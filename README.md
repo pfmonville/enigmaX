@@ -71,6 +71,12 @@ sudo mandb
 
 **-d (destroy):**
   *delete the source file at the end of the process*
+
+**-r (randomize)**
+  *randomize the name of the output file but keeping the extension intact*
+
+**-R (full randomize)**
+  *randomize the name of the output file included the extension*
   
 **KEYFILE:**
   *path to the keyfile, generate the scrambler instead of the password.*
