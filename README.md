@@ -45,7 +45,7 @@ write one of them in your ~/.bashrc(linux) or ~/.bash_profile(mac) if you want i
 to add man support, you have to add the man page in your personal man pages and update man
 ```
 # open terminal in the project folder
-sudo cp ./enigmax.1.gz /usr/local/share/man/man1/enigmax
+sudo cp ./enigmax.1.gz /usr/local/share/man/man1/
 sudo mandb
 ```
 
