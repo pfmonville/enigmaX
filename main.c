@@ -438,7 +438,7 @@ void scramble(FILE* keyFile){
 		printf("\rscrambling substitution's tables with keyFile, may be long...(%.0f%%)", progress);
 		fflush(stdout);
 		while(k < numberOfCycles){
-			if((float)(k)/(float)(numberOfCycles) * 100.0 > progress){
+			if((int)((float)(k)/(float)(numberOfCycles) * 100.0) > progress){
 				progress = (float)(k)/(float)(numberOfCycles) * 100.0;
 				printf("\rscrambling substitution's tables with keyFile, may be long...(%.0f%%)", progress);
 				fflush(stdout);
@@ -671,7 +671,7 @@ int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 	inspired by Ross Hemsley's code : https://www.ross.click/2011/02/creating-a-progress-bar-in-c-or-any-other-console-app/
 
  */
-static inline void loadBar(int currentIteration, int maximalIteration, int numberOfSteps, int numberOfSegments)
+static inline void loadBar(int currentIteration, int maximalIteration, int numberOfSteps, int numberOfSegments, char* startMessage)
 {
 	static char firstCall = 1;
 	static double elapsedTime;
@@ -697,6 +697,9 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 	elapsedTime = difftime(currentTime, startingTime);
 	timeTillEnd = elapsedTime * (1.0/ratio - 1.0);
 
+	// Start with the message
+	printf("%s", startMessage);
+
     // Show the percentage.
     printf(" %3d%% [", (int)(ratio*100));
 
@@ -720,7 +723,7 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 
 	Controller for coding the source file
  */
-void code (FILE* mainFile, char wantsToDeleteFirstFile)
+void code (FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 {
 	char codedFileName[strlen(pathToMainFile) + strlen(fileName) + 1];
 	char extractedString[BUFFER_SIZE] = "";
@@ -739,9 +742,9 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 	}
 
 	// starting encryption
-	printf("starting encryption...\n");
+	printf("%s\r",startMessage);
 	long bufferCount = 0; //keep trace of the task's completion
-	void (*XORFunction) ();
+	void (*XORFunction)();
 	if(usingKeyFile){
 		if(isCodingInverted){
 			XORFunction = codingXORKeyFileInverted;
@@ -762,17 +765,17 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				//writing on the same file so get the cursor where it starts reading the buffer
 				fseek(codedFile, -bufferLength, SEEK_CUR);
-				XORFunction(extractedString, keyString, xoredString, bufferLength);
+				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
 			{
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-				XORFunction(extractedString, keyString, xoredString, bufferLength);
+				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}
 	}else{
@@ -784,7 +787,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 				fseek(codedFile, -bufferLength, SEEK_CUR);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
@@ -792,7 +795,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}
 	}
@@ -810,7 +813,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile)
 
 	controller for decoding the source file
  */
-void decode(FILE* mainFile, char wantsToDeleteFirstFile)
+void decode(FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 {
 	char decodedFileName[strlen(pathToMainFile) + strlen(fileName) + 1];
 	char extractedString[BUFFER_SIZE] = "";
@@ -835,9 +838,9 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 	}
 
 	// starting decryption
-	printf("starting decryption...\n");
+	printf("%s\r", startMessage);
 	long bufferCount = 0; //keep trace of the task's completion
-	void (*XORFunction) ();
+	void (*XORFunction)();
 	if(usingKeyFile){
 		if(isCodingInverted){
 			XORFunction = decodingXORKeyFileInverted;
@@ -858,17 +861,17 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				//writing on the same file so get the cursor where it starts reading the buffer
 				fseek(decodedFile, -bufferLength, SEEK_CUR);
-				XORFunction(extractedString, keyString, xoredString, bufferLength);
+				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
 			{
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
-				XORFunction(extractedString, keyString, xoredString, bufferLength);
+				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}
 	}else{
@@ -880,7 +883,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 				fseek(decodedFile, -bufferLength, SEEK_CUR);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
@@ -888,7 +891,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50);
+				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
 			}
 		}
 	}
@@ -1332,12 +1335,13 @@ void getUserPrompt(){
 */
 void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile){
 	if (isCrypting){
-		code(mainFile, wantsToDeleteFirstFile);
+		code(mainFile, wantsToDeleteFirstFile, "starting encryption... ");
+		printf("\rstarting encryption... Done                                                        \n");
 	}
 	else{
-		decode(mainFile, wantsToDeleteFirstFile);
+		decode(mainFile, wantsToDeleteFirstFile, "starting decryption... ");
+		printf("\rstarting decryption... Done                                                        \n");
 	}
-	printf("Done                                                                  \n");
 	fflush(stdout);
 	if(!_isADirectory){
 		fclose(mainFile);
@@ -1395,15 +1399,6 @@ int rmrf(char *path)
 
 */
 void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirstFile, char* filePath){
-	printf("cleaning buffers and ram... ");
-	fflush(stdout);
-	secondarySeed[0] = time(NULL);
-	secondarySeed[1] = secondarySeed[0] >> 1;
-	for (int i = 0; i < passPhraseSize; i++)
-	{
-		passPhrase[i] = (char) xoroshiro128();
-	}
-
 	char mainFileString[strlen(pathToMainFile) + strlen(fileName) + 1];
 	sprintf(mainFileString, "%s%s", pathToMainFile, fileName);
 	//if we write on top of source file, we rename the source file so it's not confusing
@@ -1415,8 +1410,14 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 			// we have to securely delete the archive file used to crypt the folder
 			// put random char in the file then remove it
 			rewind(mainFile);
+			float progress = 0.0;
 			for(int i = 0; i < numberOfBuffer; i++)
 			{
+				if((int)((float)(i)/(float)(numberOfBuffer) * 100.0) > progress){
+					progress = (float)(i)/(float)(numberOfBuffer) * 100.0;
+					printf("\rsecurely deleting archive... (%.0f%%)", progress);
+					fflush(stdout);
+				}
 				char buffer[BUFFER_SIZE];
 				//fill a buffer
 				for(int j = 0; j < BUFFER_SIZE; j++){
@@ -1427,12 +1428,8 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 			}
 			fclose(mainFile);
 			remove((const char*)mainFileString);
-	}
-	if(tarName != NULL){
-		free(tarName);
-	}
-	if(dirName != NULL){
-		free(dirName);
+			printf("\rsecurely deleting archive... Done \n");
+			fflush(stdout);
 	}
 	if(_isADirectory && wantsToDeleteFirstFile){
 		//not secure removal but it's the best we can do so far with folders
@@ -1442,8 +1439,23 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 			fflush(stdout);
 		}
 	}
+	printf("cleaning buffers and ram... ");
+	fflush(stdout);
+	secondarySeed[0] = time(NULL);
+	secondarySeed[1] = secondarySeed[0] >> 1;
+	for (int i = 0; i < passPhraseSize; i++)
+	{
+		passPhrase[i] = (char) xoroshiro128();
+	}
 
+	if(tarName != NULL){
+		free(tarName);
+	}
+	if(dirName != NULL){
+		free(dirName);
+	}
 	printf("Done\n");
+	fflush(stdout);
 }
 
 
