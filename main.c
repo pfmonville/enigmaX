@@ -840,15 +840,15 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile)
 	void (*XORFunction) ();
 	if(usingKeyFile){
 		if(isCodingInverted){
-			XORFunction = codingXORKeyFileInverted;
+			XORFunction = decodingXORKeyFileInverted;
 		}else{
-			XORFunction = codingXORKeyFileNotInverted;
+			XORFunction = decodingXORKeyFileNotInverted;
 		}
 	}else{
 		if(isCodingInverted){
-			XORFunction = codingXORNoKeyFileInverted;
+			XORFunction = decodingXORNoKeyFileInverted;
 		}else{
-			XORFunction = codingXORNoKeyFileNotInverted;
+			XORFunction = decodingXORNoKeyFileNotInverted;
 		}
 	}
 	if(scrambling){
