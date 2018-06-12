@@ -754,7 +754,7 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
  */
 void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFileName, char* startMessage)
 {
-	char codedFileName[strlen(pathToMainFile) + (strlen(fileName)>20?strlen(fileName):20) + 5];
+	char codedFileName[strlen(pathToMainFile) + 25];
 	char extractedString[BUFFER_SIZE] = "";
 	char keyString[BUFFER_SIZE] = "";
 	char xoredString[BUFFER_SIZE] = "";
@@ -765,7 +765,12 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
 		if(wantsToRandomizeFileName == 2){
 			sprintf(codedFileName, "%s%s", pathToMainFile, randomName);
 		}else{
-			sprintf(codedFileName, "%s%s.bin", pathToMainFile, randomName);
+			char* extension = strrchr(fileName, '.');
+			if(extension != NULL && (extension != fileName && extension[0]!=fileName[strlen(fileName)-1])){
+				sprintf(codedFileName, "%s%s%s", pathToMainFile, randomName, extension);
+			}else{
+				sprintf(codedFileName, "%s%s", pathToMainFile, randomName);
+			}
 		}
 		free(randomName);
 	}else{
@@ -855,7 +860,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
  */
 void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFileName, char* startMessage)
 {
-	char decodedFileName[strlen(pathToMainFile) + (strlen(fileName)>20?strlen(fileName):20) + 5];
+	char decodedFileName[strlen(pathToMainFile) + 25];
 	char extractedString[BUFFER_SIZE] = "";
 	char keyString[BUFFER_SIZE] = "";
 	char xoredString[BUFFER_SIZE] = "";
@@ -870,7 +875,12 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFi
 		if(wantsToRandomizeFileName == 2){
 			sprintf(decodedFileName, "%s%s", pathToMainFile, randomName);
 		}else{
-			sprintf(decodedFileName, "%s%s.bin", pathToMainFile, randomName);
+			char* extension = strrchr(fileName, '.');
+			if(extension != NULL && (extension != fileName && extension[0]!=fileName[strlen(fileName)-1])){
+				sprintf(decodedFileName, "%s%s%s", pathToMainFile, randomName, extension);
+			}else{
+			sprintf(decodedFileName, "%s%s", pathToMainFile, randomName);
+			}
 		}
 		free(randomName);
 	}else{
@@ -1469,13 +1479,18 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 	sprintf(mainFileString, "%s%s", pathToMainFile, fileName);
 	//if we write on top of source file, we rename the source file so it's not confusing
 	if(wantsToDeleteFirstFile){
-		char outputFileString[strlen(mainFileString) + 4];
+		char outputFileString[strlen(mainFileString) + 25];
 		if(wantsToRandomizeFileName){
 			char* randomName = getRandomFileName();
 			if(wantsToRandomizeFileName == 2){
 				sprintf(outputFileString, "%s%s", pathToMainFile, randomName);
 			}else{
-				sprintf(outputFileString, "%s%s.bin", pathToMainFile, randomName);
+				char* extension = strrchr(fileName, '.');
+				if(extension != NULL && (extension != fileName && extension[0]!=fileName[strlen(fileName)-1])){
+					sprintf(outputFileString, "%s%s%s", pathToMainFile, randomName, extension);
+				}else{
+					sprintf(outputFileString, "%s%s", pathToMainFile, randomName);
+				}
 			}
 			free(randomName);
 		}else{
