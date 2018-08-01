@@ -42,6 +42,9 @@
 //
 //		-d (destroy) :
 //			write on top of the source file (except folder they are deleted at the end)
+// 
+// 		-k --keyfile : 
+// 			generate a keyfile
 //
 // 		-h --help : 
 // 			further help
@@ -92,6 +95,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 #include <stdint.h>
 #include <ctype.h>
 #include <time.h>
+#include <limits.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -105,7 +109,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
  */
 static const char *progName;
 static const char *fileName;
-static char pathToMainFile[1000] = "./";
+static char pathToMainFile[PATH_MAX] = "./";
 static char _isADirectory;
 static uint64_t seed[16];
 static int seedIndex = 0;
@@ -116,6 +120,7 @@ static char scrambling = 1;
 static char usingKeyFile = 0;
 static char isCodingInverted = 0;
 static char normalised = 0;
+static char keyfileGeneration = 0;
 static long numberOfBuffer;
 static char scramblingTablesOrder[BUFFER_SIZE];
 
@@ -136,10 +141,10 @@ static void usage(int status)
 
 	if(status == 0){
 		fprintf(dest,
-			"NAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE|DIRECTORY [KEYFILE]\n\nDESCRIPTION\n\t(FR) Permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette nouvelle clé, puis un brouilleur est utilisé. Il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible donné par la clé unique combiné avec le keyfile s'il est fournit.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order given by the unique key combined with the keyfile if present.\n\nOPTIONS\n\toptions are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-s (simple)\tput the scrambler on off.\n\n\t-i (inverted)\tinvert the coding/decoding process, for coding it xors then scrambles and for decoding it scrambles then xors.\n\n\t-n (normalised)\tnormalise the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\twrite on top of the source file(securely erase source data), except when the source is a folder where it's just deleted by the system at the end)\n\n\t-r (randomize)\trandomize the name of the output file but keeping the extension intact\n\n\t-R (randomize)\trandomize the name of the output file included the extension\n\n\tFILE|DIRECTORY\tthe path to the file or directory to crypt/decrypt\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 16 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -i file4 keyfile2\n\n\tlets you choose between crypting or decrypting, uses keyfile2 to generate the scramble table and will prompt for a password that crypt/decrypt the file but will inverts the process(option 'i'): first it xors then it scrambles for the coding process or first it unscrambles then it xors for the decoding process\n\n\tthe command :\t%s -dni file5 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and write on top of the source file(option 'd')\n\nBUGS\n\tIn rare cases, when crypting/decrypting from a  directory,  the  system cannot  open  the  tarfile  it created from the directory (possibly the file system is too slow to register it). That's why the  program  waits one  second  after  the  creation  of  the tarfile when sourcefile is a directory. If it is not enough, the tarfile will not be deleted and you just  have to redo the same command with the tarfile as the source file instead of the directory (you can use the d option to  securely  delete the tarfile to produce the same steps as the standard case).\n\nAUTHOR\n\tPierre-François MONVILLE\n\nCOPYRIGHT\n\tMIT <12 september 2015> <Pierre-François MONVILLE>\n\n", progName, progName, progName, progName, progName, progName, progName, progName);
+			"NAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE|DIRECTORY [KEYFILE]\n\nDESCRIPTION\n\t(FR) Permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette nouvelle clé, puis un brouilleur est utilisé. Il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible donné par la clé unique combiné avec le keyfile s'il est fournit.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order given by the unique key combined with the keyfile if present.\n\nOPTIONS\n\toptions are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-k | --keyfile\tgenerate keyfile.\n\n\t-s (simple)\tput the scrambler on off.\n\n\t-i (inverted)\tinvert the coding/decoding process, for coding it xors then scrambles and for decoding it scrambles then xors.\n\n\t-n (normalised)\tnormalise the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\twrite on top of the source file(securely erase source data), except when the source is a folder where it's just deleted by the system at the end)\n\n\t-r (randomize)\trandomize the name of the output file but keeping the extension intact\n\n\t-R (randomize)\trandomize the name of the output file included the extension\n\n\tFILE|DIRECTORY\tthe path to the file or directory to crypt/decrypt\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 16 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -i file4 keyfile2\n\n\tlets you choose between crypting or decrypting, uses keyfile2 to generate the scramble table and will prompt for a password that crypt/decrypt the file but will inverts the process(option 'i'): first it xors then it scrambles for the coding process or first it unscrambles then it xors for the decoding process\n\n\tthe command :\t%s -dni file5 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and write on top of the source file(option 'd')\n\n\tthe command :\t%s -k file6\n\n\tgenerate a keyfile and use it to crypt/decrypt the file\n\n\tthe command :\t%s --keyfile\n\n\tonly generate a keyfile and put it in the current directory\n\nBUGS\n\tIn rare cases, when crypting/decrypting from a  directory,  the  system cannot  open  the  tarfile  it created from the directory (possibly the file system is too slow to register it). That's why the  program  waits one  second  after  the  creation  of  the tarfile when sourcefile is a directory. If it is not enough, the tarfile will not be deleted and you just  have to redo the same command with the tarfile as the source file instead of the directory (you can use the d option to  securely  delete the tarfile to produce the same steps as the standard case).\n\nAUTHOR\n\tPierre-François MONVILLE\n\nCOPYRIGHT\n\tMIT <12 september 2015> <Pierre-François MONVILLE>\n\n", progName, progName, progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"\n%s -- crypt or decrypt any data\n\nVersion : 3.5.1\n\nUsage : %s [options] FILE|DIRECTORY [KEYFILE]\n\nFILE|DIRECTORY :\tpath to the file or directory to crypt/decrypt\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\nOptions :\n  -h | --help :\t\tfurther help\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinvert the process, swapping xor with scramble\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\toverwrite source file or delete source folder afterwards\n  -r (randomize) :\trandomize the name of the output file, keeping extension\n  -R (full randomize) : randomize the name of the output file, no extension\n\n", progName, progName);
+			"\n%s -- crypt or decrypt any data\n\nVersion : 3.6\n\nUsage : %s [options] FILE|DIRECTORY [KEYFILE]\n\nFILE|DIRECTORY :\tpath to the file or directory to crypt/decrypt\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\nOptions :\n  -h | --help :\t\tfurther help\n  -k | --keyfile :\tgenerate keyfile\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinvert the process, swapping xor with scramble\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\toverwrite source file or delete source folder afterwards\n  -r (randomize) :\trandomize the name of the output file, keeping extension\n  -R (full randomize) : randomize the name of the output file, no extension\n\n", progName, progName);
 	}
 	exit(status);
 }
@@ -289,8 +294,101 @@ uint64_t xoroshiro128(void) {
 
 	return result;
 }
+
+void jumpForXoroshiro128(void) {
+	static const uint64_t JUMP[] = { 0xdf900294d8f554a5, 0x170865df4b3201fc };
+
+	uint64_t s0 = 0;
+	uint64_t s1 = 0;
+	for(int i = 0; i < sizeof JUMP / sizeof *JUMP; i++)
+		for(int b = 0; b < 64; b++) {
+			if (JUMP[i] & UINT64_C(1) << b) {
+				s0 ^= secondarySeed[0];
+				s1 ^= secondarySeed[1];
+			}
+			xoroshiro128();
+		}
+
+	secondarySeed[0] = s0;
+	secondarySeed[1] = s1;
+}
 //**********************************************************
 
+/*
+	-void writeKeyFile(char* pathToKeyFile)
+	pathToKeyFile : a string representing the path where to write the keyFile
+
+	writes the keyFile in the current directory
+*/
+void writeKeyFile(char* pathToKeyFile){
+	srand(time(NULL));
+	int start = 10;
+	int end = 21;
+	int length = rand()%(end-start)+start;
+	FILE* keyFile;
+	if ((keyFile = fopen(pathToKeyFile, "wb")) == NULL) {
+			perror(pathToKeyFile);
+			printf("exiting...\n");
+			exit(EXIT_FAILURE);
+	}
+	numberOfBuffer = length;
+	for (int i = 0; i < numberOfBuffer; ++i)
+	{
+		char buffer[BUFFER_SIZE];
+		for(int j = 0; j < BUFFER_SIZE; j++){
+			buffer[j] = (char) xoroshiro128();
+		}
+		fwrite(buffer, sizeof(char), BUFFER_SIZE, keyFile);
+		// random number of jump
+		int numberOfJump = rand()%11;
+		for (int i = 0; i < numberOfJump; ++i)
+		{
+			jumpForXoroshiro128();
+		}
+	}
+	fclose(keyFile);
+}
+
+/*
+	-char* generateKeyFile(char* directory)
+	keyFileName : a string that will contain the name of the keyfile
+	directory (OPTIONAL) : the path of the directory where to save the keyFile
+
+	asks for a name for the keyFile then writes the keyFile in the current directory
+*/
+char* generateKeyFile(char* keyFileName, char* directory){
+	int directorySize;
+	if (directory == NULL){
+		directorySize = 0;
+	}else{
+		directorySize = strlen(directory);
+	}
+	char procedureResponse[50];
+	FILE* keyFile;
+	char loop = 0;
+	do{
+		keyFileName[0] = '\0';
+		if(loop){
+			printf("An error occured while trying to create keyFile: ");
+			perror(procedureResponse);
+			printf("\n");
+		}
+		printf("Enter the name of the keyFile:");
+		readString(procedureResponse, 49);
+		if(directory == NULL){
+			sprintf(keyFileName, "%s.key", procedureResponse);
+			// strcat(keyFileName,procedureResponse)
+		}else{
+			sprintf(keyFileName, "%s%s.key", directory, procedureResponse);
+			// strcat(keyFileName,directory);
+			// strcat(keyFileName,procedureResponse);
+		}
+		keyFile = fopen(keyFileName, "wb");
+		loop = 1;
+	}while(keyFile == NULL);
+	fclose(keyFile);
+	writeKeyFile(keyFileName);
+}
 
 
 /*
@@ -371,7 +469,14 @@ void getSeed(){
 	{
 		memcpy (&seed[i], hash + (sizeof(uint64_t) * i), sizeof (uint64_t));
 	}
-	// set the secondary seed
+}
+
+/*
+	-void setSecondarySeed()
+
+	sets the seed of xoroshiro128 so that it is not 0 everywhere
+*/
+void setSecondarySeed(){
 	secondarySeed[0] = time(NULL);
 	secondarySeed[1] = secondarySeed[0] >> 1;
 }
@@ -782,7 +887,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
 	// opening the output file
 	if(wantsToDeleteFirstFile){
 		codedFile = mainFile;
-	}else if ((codedFile = fopen(codedFileName, "w+")) == NULL) {
+	}else if ((codedFile = fopen(codedFileName, "wb")) == NULL) {
 		perror(codedFileName);
 		printf("exiting...\n");
 		exit(EXIT_FAILURE);
@@ -894,7 +999,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFi
 	if(wantsToDeleteFirstFile){
 		decodedFile = mainFile;
 	}
-	else if ((decodedFile = fopen(decodedFileName, "w+")) == NULL) {
+	else if ((decodedFile = fopen(decodedFileName, "wb")) == NULL) {
 		perror(decodedFileName);
 		printf("exiting...\n");
 		exit(EXIT_FAILURE);
@@ -1019,6 +1124,36 @@ void getProgName(char* path){
 	}
 }
 
+/*
+	-char isOptionsOrFile(char* string)
+	string : the string to test
+	returned value : 0 if it should be treated as a set of options and 1 for a file
+
+	checks if the string given is a file and if so, asks the user if he wants to treat it
+	like a file or a set of options
+*/
+char isOptionsOrFile(char* string){
+	FILE* testFile;
+	char secondArgumentIsAFile = -1;
+	if((testFile = fopen(string, "r")) != NULL){
+		char procedureResponse[2];
+		do{
+			printf("'%s' is a valid file, do you want to treat it as a set of options(o) or a file(F):", string);
+			readString(procedureResponse, 2);
+			printf("\033[F\033[J");
+			if (procedureResponse[0] == 'F' || procedureResponse[0] == 'f' || strlen(procedureResponse) == 0) {
+				secondArgumentIsAFile = 1;
+			}
+			else if(procedureResponse[0] == 'O' || procedureResponse[0] == 'o'){
+				secondArgumentIsAFile = 0;
+			}
+		}while(secondArgumentIsAFile == -1);
+		fclose(testFile);
+	}else{
+		secondArgumentIsAFile = 0;
+	}
+	return secondArgumentIsAFile;
+}
 
 /*
 	-void checkArguments(int numberOfArgument, char* secondArgument)
@@ -1035,7 +1170,23 @@ void checkArguments(int numberOfArgument, char* secondArgument){
 		printf("Error : Too many arguments(%d)\n", numberOfArgument);
 		usage(1);
 	} else if (strcmp(secondArgument, "-h") == 0 || strcmp(secondArgument, "--help") == 0) {
-		usage(0);
+		if(isOptionsOrFile(secondArgument) == 0){
+			usage(0);
+		}
+	} else if (numberOfArgument == 2 && (strcmp(secondArgument, "-k") == 0 || strcmp(secondArgument, "--keyfile") == 0)){
+		if(isOptionsOrFile(secondArgument) == 0){
+			char path[PATH_MAX];
+			generateKeyFile(path, NULL);
+			char cwd[PATH_MAX];
+			if(getcwd(cwd, sizeof(cwd)) != NULL){
+				printf("Generate keyfile done, the keyfile is at : %s/%s\n", cwd, path);
+			}else{
+				printf("Generate keyfile done, the keyfile is in the working directory with name : %s\n", path);
+			}
+			printf("Done\n");
+			fflush(stdout);
+			exit(EXIT_SUCCESS);
+		}
 	}
 }
 
@@ -1069,7 +1220,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 						printf("'%s' is a valid file, do you want to treat it as a set of options(o) or a file(F):", arguments[1]);
 						readString(procedureResponse, 2);
 						printf("\033[F\033[J");
-						if (procedureResponse[0] == 'F' || procedureResponse[0] == 'f') {
+						if (procedureResponse[0] == 'F' || procedureResponse[0] == 'f' || strlen(procedureResponse) == 0) {
 							secondArgumentIsAFile = 1;
 							hasOptions = 0;
 						}
@@ -1087,11 +1238,19 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 				char option_d = 0;
 				char option_r = 0;
 				char option_R = 0;
+				char option_k = 0;
 				char several = 0;
 				char other   = 0;
 				char dupChar;
 				for (int i = 1; i < strlen(arguments[1]); ++i){
 					switch(arguments[1][i]){
+						case'k':
+							if(++option_k > 1){
+								several = 1;
+								dupChar = 'k';
+							}	
+							keyfileGeneration = 1;
+							break;
 						case 's':
 							if(++option_s > 1){
 								several = 1;
@@ -1166,7 +1325,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 					fflush(stdout);
 				}
 
-				if(scrambling && !isCodingInverted && !normalised && !*wantsToDeleteFirstFile && !*wantsToRandomizeFileName){
+				if(scrambling && !isCodingInverted && !normalised && !*wantsToDeleteFirstFile && !*wantsToRandomizeFileName && !keyfileGeneration){
 					printf("Error : no valid option has been found\n");
 					printf("options given: '%s'\n", arguments[1]);
 					usage(1);
@@ -1182,6 +1341,11 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 						usage(1);
 					}
 					if(*keyFile != NULL){
+						if(keyfileGeneration){
+							printf("Warning : the keyfile generated will replace the keyfile given");
+							fflush(stdout);
+							*keyFile = NULL;
+						}
 						if(isADirectory(arguments[3])){
 							printf("Warning : the keyfile is a directory and will not be used\n");
 							fflush(stdout);
@@ -1224,7 +1388,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 				usingKeyFile = 0;
 			}
 		}
-		if(!usingKeyFile && normalised){
+		if(!usingKeyFile && normalised && !keyfileGeneration){
 			printf("Warning : without the keyFile, the option 'n'(normalised) will be ignored\n");
 			fflush(stdout);
 			normalised = 0;
@@ -1245,7 +1409,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 	otherwise just tries to open the mainFile
 
 */
-void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath, char wantsToDeleteFirstFile){
+void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath, char wantsToDeleteFirstFile, FILE** keyFile){
 	char openType[4] = "";
 
 	if (wantsToDeleteFirstFile)
@@ -1349,6 +1513,28 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 			exit(EXIT_FAILURE);
 		}
 	}
+
+	if(keyfileGeneration){
+		char path[PATH_MAX];
+		generateKeyFile(path, pathToMainFile);
+		if((*keyFile = fopen(path, "rb")) == NULL){
+			printf("cannot load the generated keyFile\n");
+			perror(path);
+			printf("exiting...\n");
+		}
+		usingKeyFile = 1;
+		rewind(*keyFile);
+		fseek(*keyFile, 0, SEEK_END);
+		keyFileSize = ftell(*keyFile);
+		rewind(*keyFile);
+
+		if(keyFileSize == 0){
+			printf("Warning : the keyFile is empty and thus will not be used\n");
+			fflush(stdout);
+			*keyFile = NULL;
+			usingKeyFile = 0;
+		}
+	}
 }
 
 
@@ -1387,7 +1573,7 @@ void getUserPrompt(){
 		printf("Crypt(C) or Decrypt(d):");
 		readString(procedureResponse, 2);
 		printf("\033[F\033[J");
-		if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c') {
+		if (procedureResponse[0] == 'C' || procedureResponse[0] == 'c' || strlen(procedureResponse) == 0) {
 			isCrypting = 1;
 		}
 		else if(procedureResponse[0] == 'D' || procedureResponse[0] == 'd'){
@@ -1422,11 +1608,11 @@ void getUserPrompt(){
 void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFileName){
 	if (isCrypting){
 		code(mainFile, wantsToDeleteFirstFile, wantsToRandomizeFileName, "starting encryption... ");
-		printf("\rstarting encryption... Done                                                        \n");
+		printf("\rstarting encryption... Done                                                                   \n");
 	}
 	else{
 		decode(mainFile, wantsToDeleteFirstFile, wantsToRandomizeFileName, "starting decryption... ");
-		printf("\rstarting decryption... Done                                                        \n");
+		printf("\rstarting decryption... Done                                                                   \n");
 	}
 	fflush(stdout);
 	if(!_isADirectory){
@@ -1578,10 +1764,12 @@ int main(int argc, char const *argv[])
 	char* tarName = NULL;
 	char* dirName = NULL;
 
+	setSecondarySeed();
 	getProgName((char*)argv[0]);
 	checkArguments(argc, (char*)argv[1]);
 	getOptionsAndKeyFile((char**)argv, argc, &keyFile, &filePosition, &wantsToDeleteFirstFile, &wantsToRandomizeFileName);
-	prepareAndOpenMainFile(&tarName, &dirName, &mainFile, (char*)argv[filePosition], wantsToDeleteFirstFile);
+
+	prepareAndOpenMainFile(&tarName, &dirName, &mainFile, (char*)argv[filePosition], wantsToDeleteFirstFile, &keyFile);
 	getNumberOfBuffer(mainFile);
 
 	getUserPrompt();	
