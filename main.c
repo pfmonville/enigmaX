@@ -96,6 +96,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 #include <ctype.h>
 #include <time.h>
 #include <limits.h>
+#include <sys/ioctl.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -128,6 +129,9 @@ static char passPhrase[16384];
 static uint64_t passIndex = 0;
 static int passPhraseSize = 0;
 static int keyFileSize = 0;
+
+char numberOfSegments;
+// _set_output_format(_TWO_DIGIT_EXPONENT);
 
 /*
 	-static void usage(int status)
@@ -807,7 +811,7 @@ int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 	inspired by Ross Hemsley's code : https://www.ross.click/2011/02/creating-a-progress-bar-in-c-or-any-other-console-app/
 
  */
-static inline void loadBar(int currentIteration, int maximalIteration, int numberOfSteps, int numberOfSegments, char* startMessage)
+static inline void loadBar(int currentIteration, int maximalIteration, int numberOfSteps, char* startMessage)
 {
 	static char firstCall = 1;
 	static double elapsedTime;
@@ -837,18 +841,25 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 	printf("%s", startMessage);
 
     // Show the percentage.
-    printf(" %3d%% [", (int)(ratio*100));
+    printf("%3d%% [", (int)(ratio*100));
 
     // Show the loading bar.
-    for (int i = 0; i < loadBarCursorPosition; i++)
-       printf("=");
+    for (int i = 0; i < loadBarCursorPosition; i++){
+        printf("=");
+    }
 
-    for (int i = loadBarCursorPosition; i < numberOfSegments; i++)
-       printf(" ");
+    for (int i = loadBarCursorPosition; i < numberOfSegments; i++){
+        printf(" ");
+    }
 
     // go back to the beginning of the line.
     // other way (with ANSI CODE) go to previous line then erase it : printf("] %.0f\n\033[F\033[J", timeTillEnd);
-    printf("] %.0f        \r", timeTillEnd);
+   	//printf("] %.0f\n\033[F\033[J", timeTillEnd);
+    if(timeTillEnd > 99999){
+	    printf("] %2.0E        \r", timeTillEnd);
+    }else{
+	    printf("] %.0f        \r", timeTillEnd);
+    }
     fflush(stdout);
 }
 
@@ -920,7 +931,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
 				fseek(codedFile, -bufferLength, SEEK_CUR);
 				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
@@ -928,7 +939,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}
 	}else{
@@ -940,7 +951,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
 				fseek(codedFile, -bufferLength, SEEK_CUR);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
@@ -948,7 +959,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFil
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, codedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}
 	}
@@ -1032,7 +1043,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFi
 				fseek(decodedFile, -bufferLength, SEEK_CUR);
 				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
@@ -1040,7 +1051,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFi
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				(*XORFunction)(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}
 	}else{
@@ -1052,7 +1063,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFi
 				fseek(decodedFile, -bufferLength, SEEK_CUR);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}else{
 			while(!feof(mainFile))
@@ -1060,7 +1071,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFi
 				int bufferLength = fillBuffer(mainFile, extractedString, keyString);
 				standardXOR(extractedString, keyString, xoredString, bufferLength);
 				fwrite(xoredString, sizeof(char), bufferLength, decodedFile);
-				loadBar(++bufferCount, numberOfBuffer, 100, 50, startMessage);
+				loadBar(++bufferCount, numberOfBuffer, 100, startMessage);
 			}
 		}
 	}
@@ -1763,6 +1774,17 @@ int main(int argc, char const *argv[])
 	//outside their scope because we need to free them at the end
 	char* tarName = NULL;
 	char* dirName = NULL;
+
+	struct winsize windowSize;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize);
+
+    numberOfSegments = windowSize.ws_col - 45;
+    if(numberOfSegments < 4){
+    	numberOfSegments = 4;
+    	printf("The width of your display is too small for the loading bar to display properly.\nThe minimum size is %d and a size of %d is recommended\n", 45+4, 45+25);
+    }else if(numberOfSegments > 50){
+    	numberOfSegments = 50;
+    }
 
 	setSecondarySeed();
 	getProgName((char*)argv[0]);
