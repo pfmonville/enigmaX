@@ -130,7 +130,6 @@ static uint64_t passIndex = 0;
 static int passPhraseSize = 0;
 static int keyFileSize = 0;
 
-char numberOfSegments;
 // _set_output_format(_TWO_DIGIT_EXPONENT);
 
 /*
@@ -827,6 +826,25 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
     // numberOfSteps defines the number of times the bar updates.
     if ( currentIteration % (maximalIteration/numberOfSteps + 1) != 0 ) return;
 
+
+	// adjust loadbar to display width
+	struct winsize windowSize;
+	char numberOfSegments;
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize);
+	numberOfSegments = windowSize.ws_col - 45;
+	if(numberOfSegments < 4){
+		numberOfSegments = windowSize.ws_col - 13;
+		if (numberOfSegments < 4){
+			numberOfSegments = 4;
+		}
+	}else{
+		if(numberOfSegments > 50){
+			numberOfSegments = 50;
+		}
+		// Start with the message
+		printf("%s", startMessage);
+	}
+
     // Calculate the ratio of complete-to-incomplete.
     float ratio = (float) currentIteration / (float) maximalIteration;
     int loadBarCursorPosition = ratio * numberOfSegments;
@@ -836,9 +854,6 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 	// calculate the remaining time
 	elapsedTime = difftime(currentTime, startingTime);
 	timeTillEnd = elapsedTime * (1.0/ratio - 1.0);
-
-	// Start with the message
-	printf("%s", startMessage);
 
     // Show the percentage.
     printf("%3d%% [", (int)(ratio*100));
@@ -1199,6 +1214,23 @@ void checkArguments(int numberOfArgument, char* secondArgument){
 			exit(EXIT_SUCCESS);
 		}
 	}
+}
+
+
+/*
+	-void checkDisplaySize
+
+	check if display width is large enough
+*/
+void checkDisplaySize(){
+		struct winsize windowSize;
+		char numberOfSegments;
+	    ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize);
+
+	    numberOfSegments = windowSize.ws_col - 45;
+	    if(numberOfSegments < 4){
+	    	printf("The width of your display is too small for the loading bar to display properly.\nThe minimum size is %d and a size of %d is recommended\n", 45+4, 45+25);
+	    }
 }
 
 
@@ -1775,19 +1807,9 @@ int main(int argc, char const *argv[])
 	char* tarName = NULL;
 	char* dirName = NULL;
 
-	struct winsize windowSize;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize);
-
-    numberOfSegments = windowSize.ws_col - 45;
-    if(numberOfSegments < 4){
-    	numberOfSegments = 4;
-    	printf("The width of your display is too small for the loading bar to display properly.\nThe minimum size is %d and a size of %d is recommended\n", 45+4, 45+25);
-    }else if(numberOfSegments > 50){
-    	numberOfSegments = 50;
-    }
-
 	setSecondarySeed();
 	getProgName((char*)argv[0]);
+	checkDisplaySize();
 	checkArguments(argc, (char*)argv[1]);
 	getOptionsAndKeyFile((char**)argv, argc, &keyFile, &filePosition, &wantsToDeleteFirstFile, &wantsToRandomizeFileName);
 
