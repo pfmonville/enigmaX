@@ -60,6 +60,9 @@ sudo mandb
 **-h | --help:**
   *further help.*
 
+**-k | --keyfile**
+  *generate keyfile*
+
 **-s (simple):** 
   *put the scrambler off*
 
@@ -120,10 +123,34 @@ lets you choose between crypting or decrypting, uses keyfile2 to generate the sc
 **the command:**
 
 ```
-enigmax -dni file4 keyfile2
+enigmax -dni file5 keyfile2
 ```
 
 lets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n'), inverts the scrambling phase with the xoring phase(option 'i') and destroy the source file afterwards(option 'd')
+
+**the command:**
+
+```
+enigmax -k file6
+```
+
+generate a keyfile and use it to crypt/decrypt the file
+
+**the command:**
+
+```
+enigmax --keyfile
+```
+
+only generate a keyfile and put it in the current directory
+
+**the command:**
+
+```
+enigmax --help
+```
+
+display further help
 
 ## How it works
 
