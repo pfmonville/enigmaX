@@ -1856,6 +1856,7 @@ void clean(FILE* mainFile, char* tarName, char* dirName, char wantsToDeleteFirst
 			sprintf(outputFileString, "%sx%s", pathToMainFile, fileName);
 			if ((testFile = fopen(outputFileString, "rb")) != NULL){
 				printf("\nWARNING : the source has been processed in place but it can't be renamed because a file named %s already exists so the file kept its name %s\n",outputFileString, fileName);
+				fclose(testFile);
 			}else{
 				rename(mainFileString, (const char*)outputFileString);
 			}
