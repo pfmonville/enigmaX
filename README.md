@@ -64,16 +64,19 @@ sudo mandb
   *generate keyfile*
 
 **-s (simple):** 
-  *put the scrambler off*
+  *disable the scrambler*
 
 **-i (inverted):**
-  *inverts the coding/decoding process, first it xors then it scrambles*
+  *invert the coding/decoding process, for coding it xors then scrambles and for decoding it scrambles then xors*
 
 **-n (normalised):**
-  *normalise the size of the keyFile, improving too short (less secure) or too long (take long time) keyFiles*
+  *normalise the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle*
 
 **-d (destroy):**
-  *delete the source file at the end of the process*
+  *write on top of the source file (securely erase source data), except when the source is a folder where it's just deleted by the system at the end)*
+
+**-f (force):**
+  *never ask something to the user after entering password (overwrite the output file if it already exists and treat the second argument as a file if it looks like a set of options)*
 
 **-r (randomize)**
   *randomize the name of the output file but keeping the extension intact*
@@ -81,8 +84,11 @@ sudo mandb
 **-R (full randomize)**
   *randomize the name of the output file included the extension*
   
+**FILE|DIRECTORY:**
+  *the path to the file or directory to crypt/decrypt*
+  
 **KEYFILE:**
-  *path to the keyfile, generate the scrambler instead of the password.*
+  *the path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 16 ko for the keyfile is great, however not interesting to be too heavy)*
 
 
 ## Example :
