@@ -120,7 +120,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 static const char *progName;
 static const char *fileName;
 static char pathToMainFile[PATH_MAX] = "./";
-static char outputFileName[PATH_MAX];
+static char outputFileName[2*PATH_MAX];
 static char _isADirectory;
 static uint64_t seed[16];
 static int seedIndex = 0;
@@ -402,6 +402,7 @@ void generateKeyFile(char* keyFileName, char* directory){
 		printf("The keyFile will be named key.bin in the current working directory\n");
 	}
 	else{
+		char hasConflict = 0;
 		do{
 			keyFileName[0] = '\0';
 			if(loop){
@@ -420,6 +421,7 @@ void generateKeyFile(char* keyFileName, char* directory){
 				sprintf(keyFileName, "%s%s.bin", directory, procedureResponse1);
 			}
 			if((keyFile = fopen(keyFileName, "rb")) != NULL){
+				hasConflict = 1;
 				char hasAnswered = 0;
 				char loop = 0;
 				do{
@@ -447,6 +449,10 @@ void generateKeyFile(char* keyFileName, char* directory){
 			keyFile = fopen(keyFileName, "wb");
 			loop = 1;
 		}while(keyFile == NULL);
+		if(hasConflict){
+			printf("\033[F\033[J");
+			printf("The keyFile name will be %s\n", keyFileName);
+		}
 		fclose(keyFile);
 	}
 	printf("Generating keyFile... ");
@@ -1779,7 +1785,7 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 						}else if(procedureResponse1[0] == 'N' || procedureResponse1[0] == 'n' || strlen(procedureResponse1) == 0){
 							fclose(testFile);
 							testFile = NULL;
-							char procedureResponse2[100];
+							char procedureResponse2[PATH_MAX];
 							printf("Enter the name of the output file:");
 							char firstLoop = 1;
 							do{
@@ -1787,7 +1793,7 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 									printf("\033[F\033[J");
 									printf("The output filename can't be empty, Enter the name of the output file:");
 								}
-								readString(procedureResponse2, 99);
+								readString(procedureResponse2, PATH_MAX);
 								firstLoop = 0;
 							}while(strlen(procedureResponse2) == 0);
 							outputFileName[0] = '\0';
