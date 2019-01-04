@@ -110,6 +110,7 @@ write it in your ~/.bashrc if you want it to stay after a reboot
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <termios.h>
 #include <ftw.h>
 #include <errno.h>
 
@@ -158,7 +159,7 @@ static void usage(int status)
 			"NAME\n\t%s -- crypt or decrypt any data\n\nSYNOPSIS\n\t%s [options] FILE|DIRECTORY [KEYFILE]\n\nDESCRIPTION\n\t(FR) Permet de chiffrer et de déchiffrer toutes les données entrées en paramètre. Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(générateur de nombre aléatoire). Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder. La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire). Le fichier subit un xor avec cette nouvelle clé, puis un brouilleur est utilisé. Il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni. 256 tables de brouillages sont utilisées au total dans un ordre non prédictible donné par la clé unique combiné avec le keyfile s'il est fournit.\n\t(EN) Can crypt and decrypt any data given in argument. The password asked is hashed to be used as a seed for the PRNG(pseudo random number generator). The PRNG gives a unique key which has the same length as the source file. The key is xored with the password (the password is repeated as long as necessary). The file is then xored with this new key, then a scrambler is used. It scrambles the ascii table using the PRNG and the keyfile if it is given. 256 scramble's tables are used in an unpredictible order given by the unique key combined with the keyfile if present.\n\nOPTIONS\n\toptions are as follows:\n\n\t-h | --help\tfurther help.\n\n\t-k | --keyfile\tgenerate keyfile.\n\n\t-s (simple)\tput the scrambler on off.\n\n\t-i (inverted)\tinvert the coding/decoding process, for coding it xors then scrambles and for decoding it scrambles then xors.\n\n\t-n (normalised)\tnormalise the size of the keyfile, if the keyfile is too long (over 1 cycle in the Yates and Fisher algorithm) it will be croped to complete 1 cycle\n\n\t-d (destroy)\twrite on top of the source file (securely erase source data), except when the source is a folder where it's just deleted by the system at the end)\n\n\t-f (force)\tnever ask something to the user after entering password (overwrite the output file if it already exists and treat the second argument as a file if it looks like a set of options)\n\n\t-r (randomize)\trandomize the name of the output file but keeping the extension intact\n\n\t-R (randomize)\trandomize the name of the output file included the extension\n\n\tFILE|DIRECTORY\tthe path to the file or directory to crypt/decrypt\n\n\tKEYFILE    \tthe path to a file which will be used to scramble the substitution's tables and choose in which order they will be used instead of the PRNG only (starting at 16 ko for the keyfile is great, however not interesting to be too heavy) \n\nEXIT STATUS\n\tthe %s program exits 0 on success, and anything else if an error occurs.\n\nEXAMPLES\n\tthe command :\t%s file1\n\n\tlets you choose between crypting or decrypting then it will prompt for a password that crypt/decrypt file1 as xfile1 in the same folder, file1 is not modified.\n\n\tthe command :\t%s file2 keyfile1\n\n\tlets you choose between crypting or decrypting, will prompt for the password that crypt/decrypt file2, uses keyfile1 to generate the scrambler then crypt/decrypt file2 as xfile2 in the same folder, file2 is not modified.\n\n\tthe command :\t%s -s file3\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file without using the scrambler(option 's'), resulting in using the unique key only.\n\n\tthe command :\t%s -i file4 keyfile2\n\n\tlets you choose between crypting or decrypting, uses keyfile2 to generate the scramble table and will prompt for a password that crypt/decrypt the file but will inverts the process(option 'i'): first it xors then it scrambles for the coding process or first it unscrambles then it xors for the decoding process\n\n\tthe command :\t%s -dni file5 keyfile2\n\n\tlets you choose between crypting or decrypting, will prompt for a password that crypt/decrypt the file but generates the substitution's tables with the keyfile passing only one cycle of the Fisher & Yates algorythm(option 'n', so it's shorter in time), inverts the scrambling phase with the xoring phase(option 'i') and write on top of the source file(option 'd')\n\n\tthe command :\t%s -k file6\n\n\tgenerate a keyfile and use it to crypt/decrypt the file\n\n\tthe command :\t%s --keyfile\n\n\tonly generate a keyfile and put it in the current directory\n\nBUGS\n\tIn rare cases, when crypting/decrypting from a  directory,  the  system cannot  open  the  tarfile  it created from the directory (possibly the file system is too slow to register it). That's why the  program  waits one  second  after  the  creation  of  the tarfile when sourcefile is a directory. If it is not enough, the tarfile will not be deleted and you just  have to redo the same command with the tarfile as the source file instead of the directory (you can use the d option to  securely  delete the tarfile to produce the same steps as the standard case).\n\nAUTHOR\n\tPierre-François MONVILLE\n\nCOPYRIGHT\n\tMIT <12 september 2015> <Pierre-François MONVILLE>\n\n", progName, progName, progName, progName, progName, progName, progName, progName, progName, progName);
 	} else{
 		fprintf(dest,
-			"\n%s -- crypt or decrypt any data\n\nVersion : 3.6.3\n\nUsage : %s [options] FILE|DIRECTORY [KEYFILE]\n\nFILE|DIRECTORY :\tpath to the file or directory to crypt/decrypt\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\nOptions :\n  -h | --help :\t\tfurther help\n  -k | --keyfile :\tgenerate keyfile\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinvert the process, swapping xor with scramble\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\toverwrite source file or delete source folder afterwards\n  -f (force) :\t\tnever ask, overwrite existing files\n  -r (randomize) :\trandomize the name of the output file, keeping extension\n  -R (full randomize) : randomize the name of the output file, no extension\n\n", progName, progName);
+			"\n%s -- crypt or decrypt any data\n\nVersion : 3.6.4\n\nUsage : %s [options] FILE|DIRECTORY [KEYFILE]\n\nFILE|DIRECTORY :\tpath to the file or directory to crypt/decrypt\n\nKEYFILE :\t\tpath to a keyfile for the substitution's table\n\nOptions :\n  -h | --help :\t\tfurther help\n  -k | --keyfile :\tgenerate keyfile\n  -s (simple) :\t\tput the scrambler off\n  -i (inverted) :\tinvert the process, swapping xor with scramble\n  -n (normalised) :\tnormalise the size of the keyfile\n  -d (destroy) :\toverwrite source file or delete source folder afterwards\n  -f (force) :\t\tnever ask, overwrite existing files\n  -r (randomize) :\trandomize the name of the output file, keeping extension\n  -R (full randomize) : randomize the name of the output file, no extension\n\n", progName, progName);
 	}
 	exit(status);
 }
@@ -226,7 +227,58 @@ int readString(char *string, unsigned long size)
 
 
 /*
-	-void processTarString(char* string)
+	-void getPassword
+
+	prompt for the user's password
+	the echo is disable so nothing can be seen
+ */
+void getPassword(){
+	long size;
+	struct termios tty_attr;
+
+	// disable echoing in console
+	// ---------------------------
+	if (tcgetattr(STDIN_FILENO, &tty_attr) < 0){
+		printf("Error while trying to change the visibility of the console, exiting...");
+		exit(EXIT_FAILURE);
+	}
+	// save old state
+	const tcflag_t c_lflag = tty_attr.c_lflag;
+	tty_attr.c_lflag &= ~ECHO;
+	// uncomment the line below to allow some special caracters to be capture in the password (including delete, suppr,...) causes weird glitches for page up, page down...  
+	// tty_attr.c_lflag &= ~ICANON;
+	if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0){
+		printf("Error while trying to change the visibility of the console, exiting...");
+		exit(EXIT_FAILURE);
+	}
+	// ---------------------------
+
+	do{
+		printf("Password:");
+		readString(passPhrase, 16384);
+		size = strlen(passPhrase);
+		if(size <= 0){
+			printf("\rThe password can't be empty\n");
+			continue;
+		}
+		// printf("\033[F\033[J");
+		printf("\r");
+	}while(size <= 0);
+
+	// enable echoing again
+	// ---------------------------
+	tty_attr.c_lflag = c_lflag;
+	if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0){
+		printf("Error while trying to change the visibility of the console, exiting...");
+		exit(EXIT_FAILURE);
+	}
+	// ---------------------------
+}
+
+
+
+/*
+	-char* processTarString(char* string)
 
 	change string placing '\' just before every spaces in order to 
 	the tar command to work with files/directories with spaces in their names
@@ -387,7 +439,7 @@ void writeKeyFile(char* pathToKeyFile){
 }
 
 /*
-	-char* generateKeyFile(char* directory)
+	-char* generateKeyFile(char* keyFileName, char* directory)
 	keyFileName : a string that will contain the name of the keyfile
 	directory (OPTIONAL) : the path of the directory where to save the keyFile
 
@@ -527,7 +579,7 @@ void getHash(char* output, char* password){
 
 
 /*
-	-void getSeed(char* password)
+	-void getSeed()
 	password : the string corresponding to the password given by the user
 
 	this function is here to populate the seed for the PRNG, 
@@ -554,8 +606,9 @@ void setSecondarySeed(){
 }
 
 /*
-	-void getNext255StringFromKeyFile(FILE* keyFile)
+	-void getNext255StringFromKeyFile(FILE* keyFile, char* extractedString)
 	keyFile : the keyFile on which we will extract the string
+	extractedString : the result string containing the 255 characters from keyfile
 
 	Get a 255 string from the keyFile it stops at 255 if keyFile is too long
 	and make it loop if keyFile is too short
@@ -890,11 +943,11 @@ int fillBuffer(FILE* mainFile, char* extractedString, char* keyString)
 
 
 /*
-	-static inline void loadBar(int x, int n, int r, int w)
+	-static inline void loadBar(int currentIteration, int maximalIteration, int numberOfSteps, int startMessage)
 	currentIteration : the current iteration of the thing that is proccessed
 	maximalIteration : the number which represents 100% of the process
 	numberOfSteps : number defining how many times the bar updates
-	numberOfSegments : diplayed on w segment
+	startMessage : the message displayed once at the beginning of the process
 
 	display a loading bar with current percentage, graphic representation, and time remaining
 	which update on every new percent by deleting itself to display the updating bar on top
@@ -971,8 +1024,10 @@ static inline void loadBar(int currentIteration, int maximalIteration, int numbe
 
 
 /*
-	-void code(FILE* mainFile)
+	-void code(FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 	mainFile : pointer to the file given by the user
+	wantsToDeleteFirstFile : a boolean that tells if the user wants to delete the source file afterwards
+	startMessage : the message displayed once at the beginning of the process
 
 	Controller for coding the source file
  */
@@ -1060,8 +1115,10 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 
 
 /*
-	-void decode(FILE* mainFile)
+	-void decode(FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 	mainFile : pointer to the file given by the user
+	wantsToDeleteFirstFile : a boolean that tells if the user wants to delete the source file afterwards
+	startMessage : the message displayed once at the beginning of the process
 
 	controller for decoding the source file
  */
@@ -1159,7 +1216,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 	path : string indicated the path of the file/directory
 	returned value : 0 or 1
 
-	indicates if the object with this path is a directory or not
+	tells if the object with this path is a directory or not
 
 */
 int isADirectory(const char* path){
@@ -1301,12 +1358,13 @@ void checkDisplaySize(){
 
 
 /*
-	-void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile, char* filePosition, char* wantsToDeleteFirstFile)
+	-void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile, unsigned char* filePosition, unsigned char* wantsToDeleteFirstFile, unsigned char* wantsToRandomizeFileName)
 	arguments : this is argv (all the arguments given in terminal)
 	numberOfArgument : this is argc (the number of arguments given in terminal)
 	keyFile : a pointer to the File pointer for the keyFile
 	filePosition : a pointer to the boolean, filePosition
 	wantsToDeleteFirstFile : a pointer to the boolean, wantsToDeleteFirstFile
+	wantsToRandomizeFileName : a pointer to the boolean wantsToRandomizeFileName
 
 	checks if all options are correct (no duplicates and no unknowns)
 	displays all warning considering options
@@ -1507,11 +1565,14 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 
 
 /*
-	-int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath)
+	-int prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, const char* filePath, char wantsToDeleteFirstFile, char wantsToRandomizeFileName, FILE** keyFile)
 	tarName : a pointer to the name used to tar the mainFile
 	dirName : a pointer to the name of the parent directory of the mainFile
 	mainFile : a pointer to the File pointer for the mainFile
 	filePath : the path of the mainFile
+	wantsToDeleteFirstFile : a boolean that tells if the user wants to delete the source file afterwards
+	wantsToRandomizeFileName : a boolean that tells if the user wants to randomize the name of the output file
+	keyFile : a pointer to the keyFile
 
 	checks if the mainFile is a directory
 	if it is the case, tries to tar it and open the new tar file as the mainFile
@@ -1878,26 +1939,18 @@ void getUserPrompt(){
 			isCrypting = 0;
 		}
 	}while(isCrypting == -1);
-	long size;
-	do{
-		printf("Password:");
-		readString(passPhrase, 16384);
-		size = strlen(passPhrase);
-		if(size <= 0){
-			printf("The password can't be empty\n");
-			continue;
-		}
-		printf("\033[F\033[J");
-	}while(size <= 0);
+
+	getPassword();
 	passPhraseSize = strlen(passPhrase);
 }
 
 
 
 /*
-	-void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile)
+	-void startMainProcess(FILE* mainFile, char wantsToDeleteFirstFile, char wantsToRandomizeFileName)
 	mainFile : the mainFile
-	wantsToDeleteFirstFile : a boolean that indicates if the user wants to delete the source file afterwards
+	wantsToDeleteFirstFile : a boolean that tells if the user wants to delete the source file afterwards
+	wantsToRandomizeFileName : a boolean that tells if the user wants to randomize the name of the output file 
 	
 	Launches the coding or decoding process 
 	and deletes the source file if the user wants so
@@ -1967,10 +2020,15 @@ int rmrf(char *path)
 
 
 /*
-	-void clean(char* tarName, char* dirName)
+	-void clean(char* tarName, char* dirName, char wantsToDeleteFirstFile, char wantsToRandomizeFileName, char* filePath)
 	tarName : the string used to name the tarFile from the mainFile
 	dirName : the string used to store the path of the parent directory of the mainFile
-
+	wantsToDeleteFirstFile : a boolean that tells if the user wants to delete the source file afterwards
+	wantsToRandomizeFileName : a boolean that tells if the user wants to randomize the name of the output file
+	filePath : the path of the mainFile
+	
+	fill the main file with random data if wantsToDeleteFirstFile is 1
+	give a random name to the output file if wantsToRandomizeFileName is 1
 	writes in the passPhrase emplacement random informations, 
 	so the password is not retrievable from RAM after the program ends
 	free tarName and dirName variables
@@ -2096,7 +2154,6 @@ int main(int argc, char const *argv[])
 	getNumberOfBuffer(mainFile);
 
 	getUserPrompt();	
-	
 	getSeed();
 	scramble(keyFile);
 	startMainProcess(mainFile, wantsToDeleteFirstFile, wantsToRandomizeFileName);
