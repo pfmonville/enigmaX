@@ -235,24 +235,36 @@ int readString(char *string, unsigned long size)
 void getPassword(){
 	long size;
 	struct termios tty_attr;
+	char NOT_TERMINAL = 0;
 
 	// disable echoing in console
 	// ---------------------------
 	if (tcgetattr(STDIN_FILENO, &tty_attr) < 0){
-		printf("Error while trying to change the visibility of the console, exiting...");
-		exit(EXIT_FAILURE);
-	}
-	// save old state
-	const tcflag_t c_lflag = tty_attr.c_lflag;
-	tty_attr.c_lflag &= ~ECHO;
-	// uncomment the line below to allow some special caracters to be capture in the password (including delete, suppr,...) causes weird glitches for page up, page down...  
-	// tty_attr.c_lflag &= ~ICANON;
-	if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0){
-		printf("Error while trying to change the visibility of the console, exiting...");
-		exit(EXIT_FAILURE);
+		if(errno != ENOTTY){
+			printf("Error while trying to change the visibility of the console, error code: %d, exiting...",errno);
+			exit(EXIT_FAILURE);
+		}else{
+			NOT_TERMINAL = 1;
+		}
 	}
 	// ---------------------------
 
+	// save old state
+	// ---------------------------
+	const tcflag_t c_lflag = tty_attr.c_lflag;
+	if (!NOT_TERMINAL){
+		tty_attr.c_lflag &= ~ECHO;
+		// uncomment the line below to allow some special caracters to be capture in the password (including delete, suppr,...) causes weird glitches for page up, page down...  
+		// tty_attr.c_lflag &= ~ICANON;
+		if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0){
+			printf("Error while trying to change the visibility of the console, error code: %d, exiting...",errno);
+			exit(EXIT_FAILURE);
+		}
+	}
+	// ---------------------------
+
+	// Get password
+	// ---------------------------
 	do{
 		printf("Password:");
 		readString(passPhrase, 16384);
@@ -264,13 +276,16 @@ void getPassword(){
 		// printf("\033[F\033[J");
 		printf("\r");
 	}while(size <= 0);
+	// ---------------------------
 
 	// enable echoing again
 	// ---------------------------
-	tty_attr.c_lflag = c_lflag;
-	if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0){
-		printf("Error while trying to change the visibility of the console, exiting...");
-		exit(EXIT_FAILURE);
+	if(!NOT_TERMINAL){
+		tty_attr.c_lflag = c_lflag;
+		if (tcsetattr(STDIN_FILENO, 0, &tty_attr) < 0){
+			printf("Error while trying to change the visibility of the console, exiting...");
+			exit(EXIT_FAILURE);
+		}
 	}
 	// ---------------------------
 }
@@ -450,7 +465,11 @@ void generateKeyFile(char* keyFileName, char* directory){
 	char loop = 0;
 	char procedureResponse1[50];
 	if(force){
-		sprintf(keyFileName, "key.bin");
+		if(directory == NULL){
+			sprintf(keyFileName, "key.bin");
+		}else{
+			sprintf(keyFileName, "%skey.bin", directory);
+		}
 		printf("The keyFile will be named key.bin in the current working directory\n");
 	}
 	else{
@@ -1396,7 +1415,7 @@ void getOptionsAndKeyFile(char** arguments, int numberOfArgument, FILE** keyFile
 				char option_f = 0;
 				char several = 0;
 				char other   = 0;
-				char dupChar;
+				char dupChar = 0;
 				for (int i = 1; i < (int)strlen(arguments[1]); ++i){
 					switch(arguments[1][i]){
 						case 'h':
@@ -1829,10 +1848,13 @@ void prepareAndOpenMainFile(char** tarName, char** dirName, FILE** mainFile, con
 			char hasConflict = 0;
 			do{
 				if((testFile = fopen(outputFileName, "rb")) != NULL){
-					hasConflict = 1;
 					if (force){
-						printf("The file %s has been overwritten", outputFileName);
+						printf("The file %s will be overwritten\n", outputFileName);
+						fclose(testFile);
+						testFile = NULL;
+						canWriteOnOutputFile = 1;
 					}else{
+						hasConflict = 1;
 						char procedureResponse1[2];
 						if (loop == 1){
 							printf("\033[F\033[J");
