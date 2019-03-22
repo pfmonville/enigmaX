@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -fno-move-loop-invariants -fno-unroll-loops -std=c11
+CFLAGS = -Wall -funroll-loops -std=c11 -O3
 
 SRC = main.c
 OBJ = $(SRC:.c=.o)
