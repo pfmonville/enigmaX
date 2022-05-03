@@ -22,7 +22,7 @@ Simply use the makefile
 make
 ```
 
-or enter the command corresponding to your environment
+or enter the command corresponding to your environment  
 **MAC**:
 ```
 clang -Ofast -fno-unroll-loops -O3 main.c -o enigmax
