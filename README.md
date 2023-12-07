@@ -5,7 +5,7 @@ Le mot de passe demandé au début est hashé puis sert de graine pour le PRNG(g
 Le PRNG permet de fournir une clé unique égale à la longueur du fichier à coder.    
 La clé unique subit un xor avec le mot de passe (le mot de passe est répété autant de fois que nécéssaire).    
 Le fichier subit un xor avec cette clé Puis un brouilleur est utilisé, il mélange la table des caractères (ascii) en utilisant le PRNG et en utilisant le keyfile s'il est fourni.    
-256 tables de brouillages sont utilisées au total dans un ordre non prédictible.
+256 tables de brouillages sont utilisées au total.
 
 Can crypt and decrypt any file given in argument.    
 The password asked is hashed to be used as a seed for the PRNG.    
@@ -13,7 +13,7 @@ The PRNG gives a unique key which has the same length as the source file.
 The key is xored with the password (the password is repeated as long as necessary).    
 The file is then xored with this new key, then a scrambler is used.    
 it scrambles the ascii table using the PRNG or the keyFile given.
-256 scramble's tables are used in an unpredictible order.
+256 scramble's tables are used.
 
 
 ## Installation
