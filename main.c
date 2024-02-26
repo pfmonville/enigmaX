@@ -1070,7 +1070,7 @@ void code (FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 	printf("%s\r",startMessage);
 	fflush(stdout);
 	long bufferCount = 0; //keep trace of the task's completion
-	void (*XORFunction)();
+	void (*XORFunction)(char*, char*, char*, int);
 	if(usingKeyFile){
 		if(isCodingInverted){
 			XORFunction = codingXORKeyFileInverted;
@@ -1165,7 +1165,7 @@ void decode(FILE* mainFile, char wantsToDeleteFirstFile, char* startMessage)
 	printf("%s\r", startMessage);
 	fflush(stdout);
 	long bufferCount = 0; //keep trace of the task's completion
-	void (*XORFunction)();
+	void (*XORFunction)(char*, char*, char*, int);
 	if(usingKeyFile){
 		if(isCodingInverted){
 			XORFunction = decodingXORKeyFileInverted;
